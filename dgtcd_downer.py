@@ -3,6 +3,21 @@ import requests
 import os
 import json
 import time
+import sys
+
+class AuthenticationError(Exception):
+    """Custom exception for authentication errors."""
+    pass
+
+def get_file_extension(mime_type):
+    """Map MIME type to file extension."""
+    mime_to_extension = {
+        "image/tiff; application=geotiff": ".tif",
+        "image/tiff": ".tif",
+        "application/x-las": ".laz",
+        # Add more MIME types as needed
+    }
+    return mime_to_extension.get(mime_type, ".bin")  # Fallback to .bin for unknown types
 
 def divide_bbox(bbox, max_area_km2=200):
     """Divide a large bbox into smaller bboxes with area <= max_area_km2."""
@@ -36,14 +51,18 @@ def divide_bbox(bbox, max_area_km2=200):
     
     return small_bboxes
 
-def search_stac_api(stac_url, bbox, collections=None):
+def search_stac_api(stac_url, bbox, collections=None, delay=5.0):
     """Query STAC search API for items within a bbox."""
     payload = {
         "bbox": bbox,
-        "limit": 100  # Adjust as needed
+        "limit": 1000  # Adjust as needed
     }
     if collections:
         payload["collections"] = collections
+
+    # Add delay before download
+    print(f"Waiting 5s before searching...")
+    time.sleep(delay)
     
     try:
         response = requests.post(stac_url, json=payload, timeout=30)
@@ -54,35 +73,58 @@ def search_stac_api(stac_url, bbox, collections=None):
         return {"features": []}
 
 def collect_urls_per_collection(stac_response):
-    """Extract unique URLs per collection from STAC response."""
+    """Extract unique URLs, item IDs, and extensions per collection from STAC response."""
     urls_per_collection = {}
-    seen_urls = set()  # Track URLs to remove duplicates
+    seen_urls = set()
 
     for item in stac_response.get("features", []):
         collection = item.get("collection", "unknown")
+        item_id = None
+        # Find the self link to get the item ID
+        for link in item.get("links", []):
+            if link.get("rel") == "self":
+                item_id = link.get("href").split("/")[-1]
+                break
         assets = item.get("assets", {})
         for asset_key, asset in assets.items():
             url = asset.get("href")
+            mime_type = asset.get("type")
+            extension = get_file_extension(mime_type)
             if url and url not in seen_urls:
                 if collection not in urls_per_collection:
                     urls_per_collection[collection] = []
-                urls_per_collection[collection].append(url)
+                # Store tuple of (url, item_id, extension)
+                urls_per_collection[collection].append((url, item_id, extension))
                 seen_urls.add(url)
     
     return urls_per_collection
 
-def download_file(url, output_dir, headers, cookies):
-    """Download a file from a URL if it doesn't already exist."""
-    # Use item ID or URL's last part as filename
-    filename = url.split("/")[-1]
+def download_file(url, item_id, extension, output_dir, headers, cookies, delay=5.0):
+    """Download a file from a URL if it doesn't already exist, using item_id and extension for filename."""
+    # Use item_id with dynamic extension for filename
+    filename = f"{item_id}{extension}" if item_id else f"{url.split('/')[-1]}{extension}"
     file_path = os.path.join(output_dir, filename)
 
     if os.path.exists(file_path):
         print(f"Skipping {filename}: file already exists")
         return False
+    
+    # Add delay before download
+    print(f"Waiting 5s before downloading...")
+    time.sleep(delay)
 
     try:
         response = requests.get(url, headers=headers, cookies=cookies, stream=True, timeout=30)
+        # Check Content-Type for text-based responses
+        content_type = response.headers.get("Content-Type", "").lower()
+        if content_type.startswith("text/") or content_type == "application/json":
+            error_message = f"Authentication error detected for {url}: Content-Type is {content_type}"
+            try:
+                error_message += f"\nResponse content: {response.text[:1000]}"  # Limit for brevity
+            except UnicodeDecodeError:
+                error_message += "\nResponse content: (non-text response, unable to decode)"
+            raise AuthenticationError(error_message)
+        
         response.raise_for_status()
         os.makedirs(output_dir, exist_ok=True)
         with open(file_path, "wb") as f:
@@ -95,40 +137,34 @@ def download_file(url, output_dir, headers, cookies):
         print(f"Error downloading {url}: {e}")
         return False
 
-def main(bbox, stac_url, download_url, headers, cookies, output_dir):
+def main(bbox, stac_url, headers, cookies, output_dir):
     """Main function to process bboxes, query STAC, and download files."""
-    # Step 1: Divide bbox into smaller bboxes
     small_bboxes = divide_bbox(bbox)
     print(f"Divided bbox into {len(small_bboxes)} smaller bboxes")
 
-    # Step 2 & 3: Query STAC API and collect URLs
     all_urls_per_collection = {}
     for i, small_bbox in enumerate(small_bboxes, 1):
         print(f"Processing bbox {i}/{len(small_bboxes)}: {small_bbox}")
         stac_response = search_stac_api(stac_url, small_bbox)
         urls_per_collection = collect_urls_per_collection(stac_response)
         
-        # Merge URLs into all_urls_per_collection
-        for collection, urls in urls_per_collection.items():
+        for collection, url_id_ext_pairs in urls_per_collection.items():
             if collection not in all_urls_per_collection:
                 all_urls_per_collection[collection] = []
-            all_urls_per_collection[collection].extend(urls)
+            all_urls_per_collection[collection].extend(url_id_ext_pairs)
         
         print(f"Found {sum(len(urls) for urls in urls_per_collection.values())} items in bbox {i}")
 
-    # Step 4: Download files
     total_urls = sum(len(urls) for urls in all_urls_per_collection.values())
     print(f"Total unique URLs to download: {total_urls}")
     downloaded = 0
     skipped = 0
 
-    for collection, urls in all_urls_per_collection.items():
+    for collection, url_id_ext_pairs in all_urls_per_collection.items():
         print(f"\nDownloading from collection: {collection}")
-        for j, url in enumerate(urls, 1):
-            print(f"Processing URL {j}/{len(urls)}")
-            print(f"Aguardando 5s...")
-            time.sleep(5)
-            if download_file(url, output_dir, headers, cookies):
+        for j, (url, item_id, extension) in enumerate(url_id_ext_pairs, 1):
+            print(f"Processing URL {j}/{len(url_id_ext_pairs)}")
+            if download_file(url, item_id, extension, output_dir, headers, cookies):
                 downloaded += 1
             else:
                 skipped += 1
@@ -165,6 +201,6 @@ if __name__ == "__main__":
     }
     OUTPUT_DIR = "./downloaded_files"                   # Directory to save files
 
-    main(input_bbox, STAC_SEARCH_URL, DOWNLOAD_API_URL, HEADERS, COOKIES, OUTPUT_DIR)
+    main(input_bbox, STAC_SEARCH_URL, HEADERS, COOKIES, OUTPUT_DIR)
     
     
