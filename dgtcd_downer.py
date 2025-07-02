@@ -14,7 +14,7 @@ def get_file_extension(mime_type):
     mime_to_extension = {
         "image/tiff; application=geotiff": ".tif",
         "image/tiff": ".tif",
-        "application/x-las": ".laz",
+        "application/vnd.laszip": ".laz",
         # Add more MIME types as needed
     }
     return mime_to_extension.get(mime_type, ".bin")  # Fallback to .bin for unknown types
