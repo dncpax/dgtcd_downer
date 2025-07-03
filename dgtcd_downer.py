@@ -57,6 +57,15 @@ def search_stac_api(stac_url, bbox, collections=None, delay=0.2):
     
     try:
         response = requests.post(stac_url, json=payload, timeout=30)
+        # Check Content-Type for text-based responses
+        content_type = response.headers.get("Content-Type", "").lower()
+        if content_type.startswith("text/") or content_type == "application/json":
+            error_message = f"Authentication error detected for {url}: Content-Type is {content_type}"
+            try:
+                error_message += f"\nResponse content: {response.text[:1000]}"  # Limit for brevity
+            except UnicodeDecodeError:
+                error_message += "\nResponse content: (non-text response, unable to decode)"
+            raise AuthenticationError(error_message)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
