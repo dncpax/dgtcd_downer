@@ -200,7 +200,7 @@ if __name__ == "__main__":
 
     try:
         # Bounding box
-        bbox_input = input("Define a bounding box separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
+        bbox_input = input("Define a bounding box (WGS84) separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
         input_bbox = [float(x.strip()) for x in bbox_input.split(",")]
 
         # Cookies
