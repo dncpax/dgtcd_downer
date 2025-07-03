@@ -232,7 +232,7 @@ if __name__ == "__main__":
             print("\nColeções disponíveis:")
             for i, name in enumerate(available, 1):
                 print(f"  {i}. {name}")
-            selected_input = input("Seleciona o número da coleção pretendida. Para mais que uma coleção usar os números separados por vírgula ou Enter para obter todas as coleções na bounding box:\n> ").strip()
+            selected_input = input("Seleciona o número da coleção (ex: 1,3 ou Enter para todas na BBox):\n> ").strip()
             if selected_input:
                 try:
                     indices = [int(i) - 1 for i in selected_input.split(",")]
