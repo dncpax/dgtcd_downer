@@ -3,7 +3,7 @@
 ## Intro
 Facilita o download de ficheiros do Centro de Dados da DGT, para quem não possa esperar pela API que a DGT ainda irá disponibilizar.
 
-Neste momento, só é possível descarregar ficheiros a partir do site do [CDD]https://cdd.dgterritorio.gov.pt/, desenhando áreas de interesse até 200km², clicando em cada quadrícula para adicionar à lista de downloads, e nesta lista ainda clicar no botão de descarregar todos os ficheiros selecionados.
+Neste momento, só é possível descarregar ficheiros a partir do site do [CDD](https://cdd.dgterritorio.gov.pt/), desenhando áreas de interesse até 200km², clicando em cada quadrícula para adicionar à lista de downloads, e nesta lista ainda clicar no botão de descarregar todos os ficheiros selecionados.
 
 Para quem precisa de áreas maiores que 200km² o processo é muito moroso, por agora enquanto não há uma API para o efeito, e potencialmente indutor de Síndrome do túnel cárpico. [^1]
 
@@ -19,15 +19,15 @@ O script permite a descarga "automática" para áreas maiores, MAS... não faz a
 
 *Requisitos:*
   * O python instalado no sistema
-  * conta no [CDD]https://cdd.dgterritorio.gov.pt/
+  * conta no [CDD](https://cdd.dgterritorio.gov.pt/)
 
 *Como correr o script*
 
 1. Necessários os valores da bounding box em WGS84, separados por vírgulas, tipo '-8.93493538, 39.40470256, -8.91592816, 39.41428785'
    
-   podes usar o plugin [Lat Lon Tools]https://plugins.qgis.org/plugins/latlontools/ do QGIS, para copiar a extensão no canvas. Lembra-te **WGS84**
+   podes usar o plugin [Lat Lon Tools](https://plugins.qgis.org/plugins/latlontools/) do QGIS, para copiar a extensão no canvas. Lembra-te **WGS84**
   
-2. Acede ao [CDD]https://cdd.dgterritorio.gov.pt/, abre o dev console do teu browser;
+2. Acede ao [CDD](https://cdd.dgterritorio.gov.pt/), abre o dev console do teu browser (F12);
    
    no separador Network ou Storage, consegue obter os cookies necessários para correr o script. **Necessário estares autenticado**
    
