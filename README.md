@@ -44,7 +44,7 @@ O script permite a descarga "automática" para áreas maiores, MAS... não faz a
 * Adicionar a feature essencial...barra de progresso ✅
 * Autenticação no script ❌
 * Possibilidade de download de uma coleção apenas, várias ou todas ✅
-* Definir pastas separadas para cada coleção ❌
+* Definir pastas separadas para cada coleção ✅
 * Usar params de entrada para permitir scriptar em batch ✅
 * Criar vrt de cada coleção descarregada ❌
 * Criar um tile index das coleções descarregadas ❌
