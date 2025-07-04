@@ -25,24 +25,26 @@ O script permite a descarga "automática" para áreas maiores, MAS... não faz a
 
 1. Na linha de comandos
 
-   ´´´bash
+   ```bash
+   
    python3 dgtcd_downer.py -i
-   ´´´
+   
+   ```
 
-2. Necessários os valores da bounding box em WGS84, separados por vírgulas, tipo '-8.93493538, 39.40470256, -8.91592816, 39.41428785'
+3. Necessários os valores da bounding box em WGS84, separados por vírgulas, tipo '-8.93493538, 39.40470256, -8.91592816, 39.41428785'
    
    podes usar o plugin [Lat Lon Tools](https://plugins.qgis.org/plugins/latlontools/) do QGIS, para copiar a extensão no canvas. Lembra-te **WGS84**
   
-3. Acede ao [CDD](https://cdd.dgterritorio.gov.pt/), abre o dev console do teu browser (F12);
+4. Acede ao [CDD](https://cdd.dgterritorio.gov.pt/), abre o dev console do teu browser (F12);
    
    no separador Network ou Storage, consegue obter os cookies necessários para correr o script. **Necessário estares autenticado**
    
-4. copia o value para o cookie 'auth_session' e coloca no _prompt_ do script
-5. copia o value para o cookie 'connect.sid' e coloca no _prompt_ do script
-6. Define a pasta para onde queres realizar o download, 
-7. Define os segundos de espera entre cada request/download 
-8. Seleciona o número da coleção (ex: 1,3 ou Enter para todas na BBox)
-9. E vai tomar ☕!!
+5. copia o value para o cookie 'auth_session' e coloca no _prompt_ do script
+6. copia o value para o cookie 'connect.sid' e coloca no _prompt_ do script
+7. Define a pasta para onde queres realizar o download, 
+8. Define os segundos de espera entre cada request/download 
+9. Seleciona o número da coleção (ex: 1,3 ou Enter para todas na BBox)
+10. E vai tomar ☕!!
 
 ## TODO
 
