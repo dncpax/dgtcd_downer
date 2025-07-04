@@ -275,7 +275,7 @@ if __name__ == "__main__":
             try:
                 input_bbox = [float(x.strip()) for x in args.bbox.split(" ")]
                 if len(input_bbox) != 4:
-                    raise ValueError("Bounding box must have exactly 4 values in WGS84 bounded by quotes and separated by spaces : min_lon,min_lat,max_lon,max_lat")
+                    raise ValueError("Bounding box must have exactly 4 values in WGS84 bounded by quotes and separated by spaces : min_lon min_lat max_lon max_lat")
             except ValueError as e:
                 parser.error(f"Invalid bbox format: {e}")
 
