@@ -4,6 +4,7 @@ import os
 import json
 import time
 import sys
+import argparse
 
 class AuthenticationError(Exception):
     """Custom exception for authentication errors."""
@@ -57,15 +58,6 @@ def search_stac_api(stac_url, bbox, collections=None, delay=0.2):
     
     try:
         response = requests.post(stac_url, json=payload, timeout=30)
-        # Check Content-Type for text-based responses
-        content_type = response.headers.get("Content-Type", "").lower()
-        if content_type.startswith("text/") or content_type == "application/json":
-            error_message = f"Authentication error detected for {url}: Content-Type is {content_type}"
-            try:
-                error_message += f"\nResponse content: {response.text[:1000]}"  # Limit for brevity
-            except UnicodeDecodeError:
-                error_message += "\nResponse content: (non-text response, unable to decode)"
-            raise AuthenticationError(error_message)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -97,8 +89,6 @@ def collect_urls_per_collection(stac_response):
     return urls_per_collection
 
 def download_file(url, item_id, extension, output_dir, headers, cookies, delay=5.0):
-    import sys
-
     filename = f"{item_id}{extension}" if item_id else f"{url.split('/')[-1]}{extension}"
     file_path = os.path.join(output_dir, filename)
 
@@ -111,6 +101,14 @@ def download_file(url, item_id, extension, output_dir, headers, cookies, delay=5
 
     try:
         response = requests.get(url, headers=headers, cookies=cookies, stream=True, timeout=30)
+        content_type = response.headers.get("Content-Type", "").lower()
+        if content_type.startswith("text/") or content_type == "application/json":
+            error_message = f"Authentication error detected for {url}: Content-Type is {content_type}"
+            try:
+                error_message += f"\nResponse content: {response.text[:1000]}"
+            except UnicodeDecodeError:
+                error_message += "\nResponse content: (non-text response, unable to decode)"
+            raise AuthenticationError(error_message)
         response.raise_for_status()
 
         total = int(response.headers.get('Content-Length', 0))
@@ -140,9 +138,7 @@ def download_file(url, item_id, extension, output_dir, headers, cookies, delay=5
         print(f"\nErro no download {url}: {e}")
         return False
 
-
 def get_available_collections_fallback(stac_url, headers=None, cookies=None):
-    """Fallback: get unique collections from a broad STAC search."""
     print("A obter as coleções via a API do STAC...")
     payload = {
         "bbox": [-9.5, 36.5, -6.0, 42.5],  # Portugal mainland
@@ -161,6 +157,54 @@ def get_available_collections_fallback(stac_url, headers=None, cookies=None):
     except Exception as e:
         print(f"Erro a obter as coleções: {e}")
         return []
+
+def interactive_mode(stac_url, headers, cookies):
+    print("\n--- DGT CDD Downloader (Interactive Mode) ---")
+    try:
+        bbox_input = input("Define a bounding box separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
+        input_bbox = [float(x.strip()) for x in bbox_input.split(",")]
+
+        auth_session = input("Valor do 'auth_session' cookie obtido no dev console do browser:\n> ").strip()
+        connect_sid = input("Valor do 'connect.sid' cookie obtido no dev console do browser:\n> ").strip()
+
+        output_dir = input("Diretoria de output (default: ./downloaded_files):\n> ").strip()
+        if not output_dir:
+            output_dir = "./downloaded_files"
+
+        delay_input = input("Tempo de espera em segundos entre cada request/download (default: 5.0):\n> ").strip()
+        try:
+            download_delay = float(delay_input) if delay_input else 5.0
+        except ValueError:
+            print("Tempo de espera inválido. Assumido o tempo de espera padrão: 5.0 segundos.")
+            download_delay = 5.0
+
+        cookies["auth_session"] = auth_session
+        cookies["connect.sid"] = connect_sid
+
+        available = get_available_collections_fallback(stac_url, headers=headers, cookies=cookies)
+        if not available:
+            print("AVISO: Não foi possível obter as coleções. A processar sem esse filtro.")
+            selected_collections = None
+        else:
+            print("\nColeções disponíveis:")
+            for i, name in enumerate(available, 1):
+                print(f"  {i}. {name}")
+            selected_input = input("Seleciona o número da coleção pretendida. Para mais que uma coleção usar os números separados por vírgula ou Enter para obter todas as coleções na bounding box:\n> ").strip()
+            if selected_input:
+                try:
+                    indices = [int(i) - 1 for i in selected_input.split(",")]
+                    selected_collections = [available[i] for i in indices if 0 <= i < len(available)]
+                except Exception as e:
+                    print(f"Input inválido: {e}. A processar sem esse filtro.")
+                    selected_collections = None
+            else:
+                selected_collections = None
+
+        print("\nInício do processo de download...\n")
+        return input_bbox, output_dir, download_delay, selected_collections, headers, cookies
+    except Exception as e:
+        print(f"Erro no modo interativo: {e}")
+        sys.exit(1)
 
 def main(bbox, stac_url, headers, cookies, output_dir, delay, collections=None):
     small_bboxes = divide_bbox(bbox)
@@ -196,63 +240,81 @@ def main(bbox, stac_url, headers, cookies, output_dir, delay, collections=None):
     print(f"\nResumo: Download de {downloaded} ficheiros, ignorados {skipped} ficheiros")
 
 if __name__ == "__main__":
-    print("\n--- DGT CDD Downloader ---")
+    parser = argparse.ArgumentParser(description="DGT CDD Downloader")
+    parser.add_argument("-i", "--interactive", action="store_true", help="Run in interactive mode")
+    parser.add_argument("--bbox", type=str, help="Bounding box as min_lon,min_lat,max_lon,max_lat")
+    parser.add_argument("--auth-session", type=str, help="Value of 'auth_session' cookie")
+    parser.add_argument("--connect-sid", type=str, help="Value of 'connect.sid' cookie")
+    parser.add_argument("--output-dir", type=str, default="./downloaded_files", help="Output directory (default: ./downloaded_files)")
+    parser.add_argument("--delay", type=float, default=5.0, help="Delay between requests/downloads in seconds (default: 5.0)")
+    parser.add_argument("--collections", type=str, help="Comma-separated collection names or indices")
+
+    args = parser.parse_args()
+
+    # Static config
+    STAC_SEARCH_URL = "https://cdd.dgterritorio.gov.pt/dgt-be/v1/search"
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "*/*"
+    }
+    COOKIES = {
+        "ACCEPTED_TERMS": "true"
+    }
 
     try:
-        # Bounding box
-        bbox_input = input("Define a bounding box separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
-        input_bbox = [float(x.strip()) for x in bbox_input.split(",")]
-
-        # Cookies
-        auth_session = input("Valor do 'auth_session' cookie obtido no dev console do browser:\n> ").strip()
-        connect_sid = input("Valor do 'connect.sid' cookie obtido no dev console do browser:\n> ").strip()
-
-        # Output directory
-        output_dir = input("Diretoria de outputr (default: ./downloaded_files):\n> ").strip()
-        if not output_dir:
-            output_dir = "./downloaded_files"
-
-        # Delay
-        delay_input = input("Tempo de espera em segundos entre cada request/download (default: 5.0):\n> ").strip()
-        try:
-            download_delay = float(delay_input) if delay_input else 5.0
-        except ValueError:
-            print("Tempo de espera inválido. Assumido o tempo de espera padrão: 5.0 segundos.")
-            download_delay = 5.0
-
-        # Static config
-        STAC_SEARCH_URL = "https://cdd.dgterritorio.gov.pt/dgt-be/v1/search"
-        HEADERS = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "*/*"
-        }
-        COOKIES = {
-            "ACCEPTED_TERMS": "true",
-            "auth_session": auth_session,
-            "connect.sid": connect_sid
-        }
-
-        # Get collections via fallback
-        available = get_available_collections_fallback(STAC_SEARCH_URL, headers=HEADERS, cookies=COOKIES)
-        if not available:
-            print("AVISO: Não foi possível obter as coleções. A processar sem esse filtro.")
-            selected_collections = None
+        if args.interactive:
+            # Interactive mode
+            input_bbox, output_dir, download_delay, selected_collections, headers, cookies = interactive_mode(STAC_SEARCH_URL, HEADERS, COOKIES)
         else:
-            print("\nColeções disponíveis:")
-            for i, name in enumerate(available, 1):
-                print(f"  {i}. {name}")
-            selected_input = input("Seleciona o número da coleção pretendida. Para mais que uma coleção usar os números separados por vírgula ou Enter para obter todas as coleções na bounding box:\n> ").strip()
-            if selected_input:
-                try:
-                    indices = [int(i) - 1 for i in selected_input.split(",")]
-                    selected_collections = [available[i] for i in indices if 0 <= i < len(available)]
-                except Exception as e:
-                    print(f"Input inválido: {e}. A processar sem esse filtro.")
+            # Command-line mode
+            if not all([args.bbox, args.auth_session, args.connect_sid]):
+                parser.error("In non-interactive mode, --bbox, --auth-session, and --connect-sid are required")
+            
+            # Parse bbox
+            try:
+                input_bbox = [float(x.strip()) for x in args.bbox.split(" ")]
+                if len(input_bbox) != 4:
+                    raise ValueError("Bounding box must have exactly 4 values: min_lon,min_lat,max_lon,max_lat")
+            except ValueError as e:
+                parser.error(f"Invalid bbox format: {e}")
+
+            # Set cookies
+            COOKIES["auth_session"] = args.auth_session
+            COOKIES["connect.sid"] = args.connect_sid
+
+            # Output directory
+            output_dir = args.output_dir
+
+            # Delay
+            download_delay = args.delay
+
+            # Collections
+            if args.collections:
+                available = get_available_collections_fallback(STAC_SEARCH_URL, headers=HEADERS, cookies=COOKIES)
+                if not available:
+                    print("AVISO: Não foi possível obter as coleções. A processar sem esse filtro.")
                     selected_collections = None
+                else:
+                    try:
+                        # Try parsing as indices first
+                        indices = [int(i) - 1 for i in args.collections.split(",")]
+                        selected_collections = [available[i] for i in indices if 0 <= i < len(available)]
+                        if not selected_collections:
+                            # If indices fail or empty, treat as collection names
+                            selected_collections = [c.strip() for c in args.collections.split(",")]
+                    except ValueError:
+                        # Treat as collection names
+                        selected_collections = [c.strip() for c in args.collections.split(",")]
             else:
                 selected_collections = None
 
-        print("\nInício do processo de download...\n")
+            print("\n--- DGT CDD Downloader (Command-Line Mode) ---")
+            print(f"Bounding box: {input_bbox}")
+            print(f"Output directory: {output_dir}")
+            print(f"Delay: {download_delay}s")
+            print(f"Collections: {selected_collections or 'All'}")
+            print("\nInício do processo de download...\n")
+
         main(input_bbox, STAC_SEARCH_URL, HEADERS, COOKIES, output_dir, download_delay, collections=selected_collections)
 
     except Exception as e:
