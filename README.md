@@ -17,11 +17,11 @@ O script permite a descarga "automática" para áreas maiores, MAS... não faz a
 
 ## How-to
 
-*Requisitos:*
+**Requisitos:**
   * O python instalado no sistema
   * conta no [CDD](https://cdd.dgterritorio.gov.pt/)
 
-*Como correr o script*
+**Como correr o script em modo interativo**
 
 1. Necessários os valores da bounding box em WGS84, separados por vírgulas, tipo '-8.93493538, 39.40470256, -8.91592816, 39.41428785'
    

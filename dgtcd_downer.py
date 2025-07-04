@@ -161,7 +161,7 @@ def get_available_collections_fallback(stac_url, headers=None, cookies=None):
 def interactive_mode(stac_url, headers, cookies):
     print("\n--- DGT CDD Downloader (Interactive Mode) ---")
     try:
-        bbox_input = input("Define a bounding box separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
+        bbox_input = input("Define a bounding box (WGS84) separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
         input_bbox = [float(x.strip()) for x in bbox_input.split(",")]
 
         auth_session = input("Valor do 'auth_session' cookie obtido no dev console do browser:\n> ").strip()
@@ -189,7 +189,7 @@ def interactive_mode(stac_url, headers, cookies):
             print("\nColeções disponíveis:")
             for i, name in enumerate(available, 1):
                 print(f"  {i}. {name}")
-            selected_input = input("Seleciona o número da coleção pretendida. Para mais que uma coleção usar os números separados por vírgula ou Enter para obter todas as coleções na bounding box:\n> ").strip()
+            selected_input = input("Seleciona o número da coleção (ex: 1,3 ou Enter para todas na BBox):\n> ").strip()
             if selected_input:
                 try:
                     indices = [int(i) - 1 for i in selected_input.split(",")]
@@ -275,7 +275,7 @@ if __name__ == "__main__":
             try:
                 input_bbox = [float(x.strip()) for x in args.bbox.split(" ")]
                 if len(input_bbox) != 4:
-                    raise ValueError("Bounding box must have exactly 4 values: min_lon,min_lat,max_lon,max_lat")
+                    raise ValueError("Bounding box must have exactly 4 values in WGS84 bounded by quotes and separated by spaces : min_lon,min_lat,max_lon,max_lat")
             except ValueError as e:
                 parser.error(f"Invalid bbox format: {e}")
 
