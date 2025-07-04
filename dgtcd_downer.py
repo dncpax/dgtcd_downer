@@ -232,7 +232,8 @@ def main(bbox, stac_url, headers, cookies, output_dir, delay, collections=None):
         print(f"\nDownloading da coleção: {collection}")
         for j, (url, item_id, extension) in enumerate(url_id_ext_pairs, 1):
             print(f"A processar o URL {j}/{len(url_id_ext_pairs)} : {url}")
-            if download_file(url, item_id, extension, output_dir, headers, cookies, delay):
+            collection_output_dir = os.path.join(output_dir, collection)
+            if download_file(url, item_id, extension, collection_output_dir, headers, cookies, delay):
                 downloaded += 1
             else:
                 skipped += 1
