@@ -5,7 +5,7 @@ Facilita o download de ficheiros do Centro de Dados da DGT, para quem não possa
 
 Neste momento, só é possível descarregar ficheiros a partir do site do [CDD](https://cdd.dgterritorio.gov.pt/), desenhando áreas de interesse até 200km², clicando em cada quadrícula para adicionar à lista de downloads, e nesta lista ainda clicar no botão de descarregar todos os ficheiros selecionados.
 
-Para quem precisa de áreas maiores que 200km² o processo é muito moroso, e potencialmente indutor de Síndrome do túnel cárpico [^1], uma vez que por agora enquanto não há uma API para o efeito!
+Para quem precisa de áreas maiores que 200km² o processo é muito moroso, e potencialmente indutor de Síndrome do túnel cárpico [^1], isto enquanto não há uma API para o efeito!
 
 O script permite a descarga "automática" para áreas maiores, MAS... não faz ainda a autenticação, pelo que o user tem de obter os cookies de autenticação através da consola do browser, e fornecê-los ao script.
 
