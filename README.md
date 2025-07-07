@@ -60,7 +60,7 @@ O script permite a descarga "automática" para áreas maiores, MAS... não faz a
 * Fazer um micro how-to para utilização ✅ (mais ou menos feito)
 * Fazer um UI 💀💀💀... hmmmm nahhh! Ou melhor no QGIS! ✅
 
-Com a eventual disponbilização da API, o script poderá ficar obsoleto.
+Com a eventual disponibilização da API, o script poderá ficar obsoleto.
 
 
 
