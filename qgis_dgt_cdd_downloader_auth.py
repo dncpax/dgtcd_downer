@@ -546,7 +546,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     def download_file(self, url: str, item_id: str, extension: str, 
                      output_dir: str, delay: float,
                      feedback: QgsProcessingFeedback) -> bool:
-        """Download a single file with session validation"""
+        """Download a single file with session validation and retry logic"""
         # Check session validity periodically
         self._download_counter += 1
         if self._download_counter % 10 == 0:  # Check every 10 files
@@ -566,47 +566,67 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(f"Downloading {filename}...")
         time.sleep(delay)
         
-        try:
-            response = self.session.get(
-                url, 
-                stream=True,
-                timeout=60
-            )
-            
-            # Check for authentication errors
-            content_type = response.headers.get("Content-Type", "").lower()
-            if content_type.startswith("text/html"):
-                # Might be an auth error page
-                if "login" in response.text.lower() or "auth" in response.text.lower():
-                    raise AuthenticationError(f"Authentication error for {url}")
-            
-            response.raise_for_status()
-            
-            # Create output directory
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Download with progress
-            total_size = int(response.headers.get('Content-Length', 0))
-            downloaded = 0
-            
-            with open(file_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if feedback.isCanceled():
-                        return False
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        
-                        if total_size > 0:
-                            progress = int(100 * downloaded / total_size)
-                            feedback.setProgress(progress)
-            
-            feedback.pushInfo(f"Downloaded {filename} successfully")
-            return True
-            
-        except Exception as e:
-            feedback.reportError(f"Error downloading {url}: {e}")
-            return False
+        max_retries = 3
+        retry_delay = 5  # seconds between retries
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                response = self.session.get(
+                    url, 
+                    stream=True,
+                    timeout=60
+                )
+                
+                # Check for authentication errors
+                content_type = response.headers.get("Content-Type", "").lower()
+                if content_type.startswith("text/html"):
+                    # Might be an auth error page
+                    if "login" in response.text.lower() or "auth" in response.text.lower():
+                        raise AuthenticationError(f"Authentication error for {url}")
+                
+                response.raise_for_status()
+                
+                # Create output directory
+                os.makedirs(output_dir, exist_ok=True)
+                
+                # Download with progress
+                total_size = int(response.headers.get('Content-Length', 0))
+                downloaded = 0
+                
+                with open(file_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if feedback.isCanceled():
+                            return False
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            if total_size > 0:
+                                progress = int(100 * downloaded / total_size)
+                                feedback.setProgress(progress)
+                
+                feedback.pushInfo(f"Downloaded {filename} successfully")
+                return True
+                
+            except (requests.exceptions.ConnectionError, 
+                    requests.exceptions.ChunkedEncodingError,
+                    requests.exceptions.Timeout) as e:
+                retry_count += 1
+                if retry_count < max_retries:
+                    feedback.pushInfo(f"Connection error downloading {filename} (attempt {retry_count}/{max_retries}): {str(e)}")
+                    feedback.pushInfo(f"Waiting {retry_delay} seconds before retry...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    feedback.reportError(f"Failed to download {filename} after {max_retries} attempts: {str(e)}")
+                    return False
+                    
+            except Exception as e:
+                feedback.reportError(f"Error downloading {url}: {e}")
+                return False
+        
+        return False
     
     def create_vrt_for_collection(self, collection: str, output_dir: str, 
                                  feedback: QgsProcessingFeedback) -> Optional[str]:
@@ -985,6 +1005,6 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
 
 def classFactory(iface):
     """
-    Required function for QGIS loading
+    Required function for QGIS plugin loading
     """
     return DgtCddDownloaderAlgorithm()
