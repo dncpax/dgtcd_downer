@@ -98,6 +98,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     CREATE_BOUNDARY_LAYER = 'CREATE_BOUNDARY_LAYER'
     BOUNDARY_OUTPUT = 'BOUNDARY_OUTPUT'
     CREATE_VRT = 'CREATE_VRT'
+    BUILD_OVERVIEWS = 'BUILD_OVERVIEWS'
     LOAD_VRT = 'LOAD_VRT'
     
     def __init__(self):
@@ -274,7 +275,17 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterBoolean(
                 self.CREATE_VRT,
                 self.tr('Create VRT files for raster collections'),
-                defaultValue=True
+                defaultValue=True,
+                optional=True
+            )
+        )
+        
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.BUILD_OVERVIEWS,
+                self.tr('Build overviews (pyramids) for VRT files'),
+                defaultValue=True,
+                optional=True
             )
         )
         
@@ -282,16 +293,18 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterBoolean(
                 self.LOAD_VRT,
                 self.tr('Load VRT files into QGIS'),
-                defaultValue=True
+                defaultValue=True,
+                optional=True
             )
         )
-        
+
         # Create boundary layer
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.CREATE_BOUNDARY_LAYER,
                 self.tr('Create boundary layer showing download areas'),
-                defaultValue=True
+                defaultValue=True,
+                optional=True
             )
         )
         
@@ -300,7 +313,8 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
                 self.BOUNDARY_OUTPUT,
                 self.tr('Boundary Layer'),
                 type=QgsProcessing.TypeVectorPolygon,
-                optional=True
+                optional=True,
+                createByDefault=True
             )
         )
     
@@ -693,6 +707,41 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             feedback.reportError(f"Error creating VRT for {collection}: {str(e)}")
             return None
     
+    def build_vrt_overviews(self, vrt_path: str, feedback: QgsProcessingFeedback) -> bool:
+        """Build overviews (pyramids) for a VRT file"""
+        try:
+            if not os.path.exists(vrt_path):
+                feedback.reportError(f"VRT file does not exist: {vrt_path}")
+                return False
+            
+            feedback.pushInfo(f"Building overviews for {os.path.basename(vrt_path)}...")
+            
+            # Use GDAL's overview builder through processing
+            overview_params = {
+                'INPUT': vrt_path,
+                'LEVELS': '2 4 8 16 32',  # Standard pyramid levels
+                'RESAMPLING': 0,  # Nearest neighbor
+                'FORMAT': 0,  # External (GTiff.ovr)
+                'EXTRA': ''
+            }
+            
+            result = processing.run(
+                "gdal:overviews",
+                overview_params,
+                feedback=feedback
+            )
+            
+            if result:
+                feedback.pushInfo(f"Successfully built overviews for {os.path.basename(vrt_path)}")
+                return True
+            else:
+                feedback.reportError(f"Failed to build overviews for {os.path.basename(vrt_path)}")
+                return False
+                
+        except Exception as e:
+            feedback.reportError(f"Error building overviews for {os.path.basename(vrt_path)}: {str(e)}")
+            return False
+    
     def load_vrt_to_qgis(self, vrt_path: str, collection: str, 
                         feedback: QgsProcessingFeedback) -> bool:
         """Load VRT file into QGIS"""
@@ -812,6 +861,10 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             max_area = self.parameterAsDouble(parameters, self.MAX_AREA, context)
             collection_indices = self.parameterAsEnums(parameters, self.COLLECTIONS, context)
             create_vrt = self.parameterAsBool(parameters, self.CREATE_VRT, context)
+            # Get the overview parameter (only if create_vrt is True)
+            build_overviews = False
+            if create_vrt:
+                build_overviews = self.parameterAsBool(parameters, self.BUILD_OVERVIEWS, context)
             load_vrt = self.parameterAsBool(parameters, self.LOAD_VRT, context)
             create_boundary = self.parameterAsBool(parameters, self.CREATE_BOUNDARY_LAYER, context)
             boundary_output = self.parameterAsOutputLayer(parameters, self.BOUNDARY_OUTPUT, context)
@@ -952,10 +1005,14 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
                     if vrt_path:
                         vrt_files.append((vrt_path, collection))
                         
+                        # Build overviews if requested
+                        if build_overviews:
+                            self.build_vrt_overviews(vrt_path, feedback)
+                        
                         # Load VRT to QGIS if requested
                         if load_vrt:
                             self.load_vrt_to_qgis(vrt_path, collection, feedback)
-            
+
             # Create boundary layer if requested
             boundary_layer_path = None
             if create_boundary and boundary_output:
@@ -970,6 +1027,12 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
                     if boundary_layer.isValid():
                         QgsProject.instance().addMapLayer(boundary_layer)
                         feedback.pushInfo("Boundary layer added to QGIS")
+            else:
+                # Explicitly set to None when not creating boundary layer
+                boundary_layer_path = None
+                # Remove the output from results if it exists
+                if self.BOUNDARY_OUTPUT in parameters:
+                    parameters[self.BOUNDARY_OUTPUT] = None
             
             # Summary
             feedback.pushInfo("Download process completed!")
