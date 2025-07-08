@@ -8,6 +8,16 @@ import argparse
 import urllib.parse
 from html.parser import HTMLParser
 
+# Global state for session management
+auth_state = {
+    "session": None,
+    "username": None,
+    "password": None,
+    "last_auth_time": 0,
+    "download_counter": 0,
+}
+SESSION_TIMEOUT = 25 * 60  # 25 minutes in seconds
+
 class AuthenticationError(Exception):
     """Custom exception for authentication errors."""
     pass
@@ -36,6 +46,22 @@ class KeycloakFormParser(HTMLParser):
         if tag == 'form' and self.in_form:
             self.in_form = False
 
+# Session validation helper functions
+def is_session_expired():
+    """Check if session has likely expired based on time."""
+    return (time.time() - auth_state["last_auth_time"]) > SESSION_TIMEOUT
+
+def is_session_valid(stac_url):
+    """Check if the current session is still valid by making a test API call."""
+    try:
+        test_payload = {"bbox": [-9.0, 38.0, -8.0, 39.0], "limit": 1}
+        response = auth_state["session"].post(stac_url, json=test_payload, timeout=15)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"\n[Session validation check failed: {e}]")
+        return False
+
+# --- CHANGE 3: Modify authenticate() to update global state ---
 def authenticate(username, password):
     """
     Authenticates with DGT using username and password.
@@ -116,7 +142,12 @@ def authenticate(username, password):
 
             if test_response.status_code == 200:
                 print("Authentication successful! Session is valid.")
-                return session
+                # --- Update the shared state on success ---
+                auth_state["session"] = session
+                auth_state["username"] = username
+                auth_state["password"] = password
+                auth_state["last_auth_time"] = time.time()
+                return True # Return success status
             else:
                 raise AuthenticationError(f"Authentication test failed. STAC API returned status {test_response.status_code}. Please check credentials.")
         else:
@@ -124,10 +155,10 @@ def authenticate(username, password):
 
     except requests.RequestException as e:
         print(f"Network error during authentication: {e}")
-        return None
+        return False
     except AuthenticationError as e:
         print(f"Authentication error: {e}")
-        return None
+        return False
 
 def get_file_extension(mime_type):
     mime_to_extension = {
@@ -164,7 +195,7 @@ def divide_bbox(bbox, max_area_km2=200):
     
     return small_bboxes
 
-def search_stac_api(session, stac_url, bbox, collections=None, delay=0.2):
+def search_stac_api(stac_url, bbox, collections=None, delay=0.2):
     payload = {
         "bbox": bbox,
         "limit": 1000
@@ -176,7 +207,8 @@ def search_stac_api(session, stac_url, bbox, collections=None, delay=0.2):
     time.sleep(delay)
     
     try:
-        response = session.post(stac_url, json=payload, timeout=30)
+        # Use session from global state
+        response = auth_state["session"].post(stac_url, json=payload, timeout=30)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -207,19 +239,29 @@ def collect_urls_per_collection(stac_response):
     
     return urls_per_collection
 
-def download_file(session, url, item_id, extension, output_dir, delay=5.0):
+# Check global session validity periodically
+def download_file(stac_url, url, item_id, extension, output_dir, delay=5.0):
+
+    auth_state["download_counter"] += 1
+    if auth_state["download_counter"] % 10 == 0:  # Check every 10 files
+        if is_session_expired() or not is_session_valid(stac_url):
+            print("\n[Session expired or invalid, re-authenticating...]")
+            if not authenticate(auth_state["username"], auth_state["password"]):
+                raise AuthenticationError("Re-authentication failed. Aborting.")
+
     filename = f"{item_id}{extension}" if item_id else f"{url.split('/')[-1]}{extension}"
     file_path = os.path.join(output_dir, filename)
 
     if os.path.exists(file_path):
         print(f"Ignorar {filename}: ficheiro já existe")
-        return False
+        return True
 
     print(f"A esperar {delay}s antes do download do {filename}...")
     time.sleep(delay)
 
     try:
-        response = session.get(url, stream=True, timeout=60)
+        # Use session from global state
+        response = auth_state["session"].get(url, stream=True, timeout=60)
         content_type = response.headers.get("Content-Type", "").lower()
         if content_type.startswith("text/html"):
             raise AuthenticationError(f"Authentication error detected for {url}: Content-Type is HTML. Your session might have expired.")
@@ -256,14 +298,14 @@ def download_file(session, url, item_id, extension, output_dir, delay=5.0):
         print(f"\nErro no download {url}: {e}")
         return False
 
-def get_available_collections_fallback(session, stac_url):
+def get_available_collections_fallback(stac_url):
     print("A obter as coleções via a API do STAC...")
     payload = {
         "bbox": [-9.5, 36.5, -6.0, 42.5],  # Portugal mainland
         "limit": 1000
     }
     try:
-        response = session.post(stac_url, json=payload, timeout=30)
+        response = auth_state["session"].post(stac_url, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
         collections = set()
@@ -281,9 +323,9 @@ def interactive_mode(stac_url):
     try:
         username = input("DGT Username (Email):\n> ").strip()
         password = input("DGT Password:\n> ").strip()
+        
 
-        session = authenticate(username, password)
-        if not session:
+        if not authenticate(username, password):
             sys.exit(1)
 
         bbox_input = input("Define a bounding box (WGS84) separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
@@ -296,7 +338,7 @@ def interactive_mode(stac_url):
         delay_input = input("Tempo de espera em segundos entre cada request/download (default: 5.0):\n> ").strip()
         download_delay = float(delay_input) if delay_input else 5.0
 
-        available = get_available_collections_fallback(session, stac_url)
+        available = get_available_collections_fallback(stac_url)
         if not available:
             print("AVISO: Não foi possível obter as coleções. A processar sem esse filtro.")
             selected_collections = None
@@ -314,19 +356,20 @@ def interactive_mode(stac_url):
                     print("Input inválido. A processar sem esse filtro.")
                     
         print("\nInício do processo de download...\n")
-        return session, input_bbox, output_dir, download_delay, selected_collections
+
+        return input_bbox, output_dir, download_delay, selected_collections
     except Exception as e:
         print(f"Erro no modo interativo: {e}")
         sys.exit(1)
 
-def main(session, bbox, stac_url, output_dir, delay, collections=None):
+def main(bbox, stac_url, output_dir, delay, collections=None):
     small_bboxes = divide_bbox(bbox)
     print(f"Bbox dividida em {len(small_bboxes)} pequenas bboxes")
 
     all_urls_per_collection = {}
     for i, small_bbox in enumerate(small_bboxes, 1):
         print(f"A processar bbox {i}/{len(small_bboxes)}: {small_bbox}")
-        stac_response = search_stac_api(session, stac_url, small_bbox, collections=collections)
+        stac_response = search_stac_api(stac_url, small_bbox, collections=collections)
         urls_per_collection = collect_urls_per_collection(stac_response)
         
         for collection, url_id_ext_pairs in urls_per_collection.items():
@@ -340,13 +383,14 @@ def main(session, bbox, stac_url, output_dir, delay, collections=None):
     print(f"Total de URLs únicos para download: {total_urls}")
     downloaded = 0
     skipped = 0
+    auth_state["download_counter"] = 0 # Reset counter before starting downloads
 
     for collection, url_id_ext_pairs in all_urls_per_collection.items():
         print(f"\nDownloading da coleção: {collection}")
         for j, (url, item_id, extension) in enumerate(url_id_ext_pairs, 1):
             print(f"A processar o URL {j}/{len(url_id_ext_pairs)} : {url}")
             collection_output_dir = os.path.join(output_dir, collection)
-            if download_file(session, url, item_id, extension, collection_output_dir, delay):
+            if download_file(stac_url, url, item_id, extension, collection_output_dir, delay):
                 downloaded += 1
             else:
                 skipped += 1
@@ -371,14 +415,14 @@ if __name__ == "__main__":
     try:
         session = None
         if args.interactive:
-            session, input_bbox, output_dir, download_delay, selected_collections = interactive_mode(STAC_SEARCH_URL)
+            input_bbox, output_dir, download_delay, selected_collections = interactive_mode(STAC_SEARCH_URL)
+            main(input_bbox, STAC_SEARCH_URL, output_dir, download_delay, collections=selected_collections)
         else:
             # Command-line mode
             if not all([args.bbox, args.username, args.password]):
                 parser.error("In non-interactive mode, --bbox, --username, and --password are required.")
             
-            session = authenticate(args.username, args.password)
-            if not session:
+            if not authenticate(args.username, args.password):
                 sys.exit(1)
             
             try:
@@ -400,11 +444,9 @@ if __name__ == "__main__":
             print(f"Delay: {download_delay}s")
             print(f"Collections: {selected_collections or 'All available in BBox'}")
             print("\nInício do processo de download...\n")
-        
-        # This check is necessary because interactive mode returns a complete tuple
-        if session:
-             main(session, input_bbox, STAC_SEARCH_URL, output_dir, download_delay, collections=selected_collections)
+            
+            main(input_bbox, STAC_SEARCH_URL, output_dir, download_delay, collections=selected_collections)
 
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"\nAn unexpected error occurred: {e}")
         sys.exit(1)
