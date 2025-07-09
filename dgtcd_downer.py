@@ -61,10 +61,10 @@ def is_session_valid(stac_url):
         print(f"\n[Session validation check failed: {e}]")
         return False
 
-# --- CHANGE 3: Modify authenticate() to update global state ---
+# --- Authenticate() to update global state ---
 def authenticate(username, password):
     """
-    Authenticates with DGT using username and password.
+    Authenticates with DGT using username and password and updates the global state.
     """
     # Constants for authentication
     auth_base_url = "https://auth.cdd.dgterritorio.gov.pt/realms/dgterritorio/protocol/openid-connect"
@@ -75,9 +75,7 @@ def authenticate(username, password):
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
-        "Connection": "keep-alive"
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8", "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8", "Connection": "keep-alive"
     }
 
     try:
@@ -89,14 +87,7 @@ def authenticate(username, password):
         print("Visiting main site...")
         response = session.get(main_site, timeout=30)
         response.raise_for_status()
-
-        # 2: login form from the OIDC auth URL
-        auth_params = {
-            'client_id': client_id,
-            'response_type': 'code',
-            'redirect_uri': redirect_uri,
-            'scope': 'openid profile email'
-        }
+        auth_params = {'client_id': client_id, 'response_type': 'code', 'redirect_uri': redirect_uri, 'scope': 'openid profile email'}
         full_auth_url = f"{auth_base_url}/auth?" + urllib.parse.urlencode(auth_params)
         print("Getting authentication page...")
         response = session.get(full_auth_url, timeout=30)
@@ -105,49 +96,26 @@ def authenticate(username, password):
         # 3: Parse the login form
         parser = KeycloakFormParser()
         parser.feed(response.text)
-        if not parser.form_action:
-            raise AuthenticationError("Could not find login form on the authentication page.")
+        if not parser.form_action: raise AuthenticationError("Could not find login form on the authentication page.")
         print("Found login form, submitting credentials...")
 
         # 4: Submit login form
         login_data = parser.form_data.copy()
         login_data.update({'username': username, 'password': password})
-
-        if parser.form_action.startswith('/'):
-            login_url = f"https://auth.cdd.dgterritorio.gov.pt{parser.form_action}"
-        else:
-            login_url = parser.form_action
-
+        login_url = parser.form_action if not parser.form_action.startswith('/') else f"https://auth.cdd.dgterritorio.gov.pt{parser.form_action}"
         login_headers = headers.copy()
-        login_headers.update({
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Origin': 'https://auth.cdd.dgterritorio.gov.pt',
-            'Referer': response.url
-        })
-
-        response = session.post(
-            login_url,
-            data=login_data,
-            headers=login_headers,
-            allow_redirects=True,
-            timeout=30
-        )
+        login_headers.update({'Content-Type': 'application/x-www-form-urlencoded', 'Origin': 'https://auth.cdd.dgterritorio.gov.pt', 'Referer': response.url})
+        response = session.post(login_url, data=login_data, headers=login_headers, allow_redirects=True, timeout=30)
         response.raise_for_status()
         
         # 5: Check if login was successful by testing the STAC API
         if response.url.startswith(main_site):
             print("Successfully redirected to main site. Verifying session...")
-            test_payload = {"bbox": [-9.0, 38.0, -8.0, 39.0], "limit": 1}
-            test_response = session.post(stac_url, json=test_payload, timeout=30)
-
+            test_response = session.post(stac_url, json={"bbox": [-9.0, 38.0, -8.0, 39.0], "limit": 1}, timeout=30)
             if test_response.status_code == 200:
                 print("Authentication successful! Session is valid.")
-                # --- Update the shared state on success ---
-                auth_state["session"] = session
-                auth_state["username"] = username
-                auth_state["password"] = password
-                auth_state["last_auth_time"] = time.time()
-                return True # Return success status
+                auth_state.update({"session": session, "username": username, "password": password, "last_auth_time": time.time()})
+                return True
             else:
                 raise AuthenticationError(f"Authentication test failed. STAC API returned status {test_response.status_code}. Please check credentials.")
         else:
@@ -173,11 +141,7 @@ def divide_bbox(bbox, max_area_km2=200):
     deg_to_km = 111
     width_km = (max_lon - min_lon) * deg_to_km * math.cos(math.radians((min_lat + max_lat) / 2))
     height_km = (max_lat - min_lat) * deg_to_km
-    total_area_km2 = width_km * height_km
-
-    if total_area_km2 <= max_area_km2:
-        return [bbox]
-
+    if width_km * height_km <= max_area_km2: return [bbox]
     splits_x = math.ceil(width_km / math.sqrt(max_area_km2))
     splits_y = math.ceil(height_km / math.sqrt(max_area_km2))
 
@@ -221,20 +185,12 @@ def collect_urls_per_collection(stac_response):
 
     for item in stac_response.get("features", []):
         collection = item.get("collection", "unknown")
-        item_id = None
-        for link in item.get("links", []):
-            if link.get("rel") == "self":
-                item_id = link.get("href").split("/")[-1]
-                break
-        assets = item.get("assets", {})
-        for asset_key, asset in assets.items():
+        item_id = next((link.get("href").split("/")[-1] for link in item.get("links", []) if link.get("rel") == "self"), item.get("id", "unknown"))
+        for asset in item.get("assets", {}).values():
             url = asset.get("href")
-            mime_type = asset.get("type")
-            extension = get_file_extension(mime_type)
+
             if url and url not in seen_urls:
-                if collection not in urls_per_collection:
-                    urls_per_collection[collection] = []
-                urls_per_collection[collection].append((url, item_id, extension))
+                urls_per_collection.setdefault(collection, []).append((url, item_id, get_file_extension(asset.get("type"))))
                 seen_urls.add(url)
     
     return urls_per_collection
@@ -243,7 +199,7 @@ def collect_urls_per_collection(stac_response):
 def download_file(stac_url, url, item_id, extension, output_dir, delay=5.0):
 
     auth_state["download_counter"] += 1
-    if auth_state["download_counter"] % 10 == 0:  # Check every 10 files
+    if auth_state["download_counter"] % 10 == 0:
         if is_session_expired() or not is_session_valid(stac_url):
             print("\n[Session expired or invalid, re-authenticating...]")
             if not authenticate(auth_state["username"], auth_state["password"]):
@@ -259,44 +215,57 @@ def download_file(stac_url, url, item_id, extension, output_dir, delay=5.0):
     print(f"A esperar {delay}s antes do download do {filename}...")
     time.sleep(delay)
 
-    try:
-        # Use session from global state
-        response = auth_state["session"].get(url, stream=True, timeout=60)
-        content_type = response.headers.get("Content-Type", "").lower()
-        if content_type.startswith("text/html"):
-            raise AuthenticationError(f"Authentication error detected for {url}: Content-Type is HTML. Your session might have expired.")
-        response.raise_for_status()
+    max_retries, retry_delay = 3, 5
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            response = auth_state["session"].get(url, stream=True, timeout=60)
+            content_type = response.headers.get("Content-Type", "").lower()
+            if content_type.startswith("text/html"):
+                raise AuthenticationError(f"Authentication error for {url} (received HTML).")
+            response.raise_for_status()
 
-        total = int(response.headers.get('Content-Length', 0))
-        downloaded = 0
-        chunk_size = 8192
-        bar_length = 30
+            total = int(response.headers.get('Content-Length', 0))
+            downloaded = 0
+            chunk_size = 8192
+            bar_length = 30
 
-        os.makedirs(output_dir, exist_ok=True)
-        with open(file_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total > 0:
-                        done = int(bar_length * downloaded / total)
-                        percent = int(100 * downloaded / total)
-                        bar = f"[{'#' * done}{'-' * (bar_length - done)}] {percent}%"
-                        sys.stdout.write(f"\rDownloading {filename} {bar}")
-                        sys.stdout.flush()
+            os.makedirs(output_dir, exist_ok=True)
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0:
+                            done = int(bar_length * downloaded / total)
+                            percent = int(100 * downloaded / total)
+                            bar = f"[{'#' * done}{'-' * (bar_length - done)}] {percent}%"
+                            sys.stdout.write(f"\rDownloading {filename} {bar}")
+                            sys.stdout.flush()
+            
             if total > 0:
                 sys.stdout.write("\n")
             else:
-                print(f"Download do {filename} realizado! (unknown size)")
-        return True
-
-    except requests.RequestException as e:
-        print(f"\nErro no download {url}: {e}")
-        return False
-
-    except AuthenticationError as e:
-        print(f"\nErro no download {url}: {e}")
-        return False
+                print(f"Download do {filename} realizado! (tamanho desconhecido)")
+            
+            return True # Success
+        
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError, requests.exceptions.Timeout) as e:
+            sys.stdout.write("\n") # Clean up line from progress bar
+            retry_count += 1
+            if retry_count < max_retries:
+                print(f"Erro de rede no download {filename} (tentativa {retry_count}/{max_retries}): {e}")
+                print(f"A esperar {retry_delay}s antes de tentar novamente...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                print(f"Falha no download {filename} após {max_retries} tentativas: {e}")
+                return False
+        except Exception as e:
+            sys.stdout.write("\n") # Clean up line from progress bar
+            print(f"Erro no download {url}: {e}")
+            return False
+    return False
 
 def get_available_collections_fallback(stac_url):
     print("A obter as coleções via a API do STAC...")
@@ -308,12 +277,7 @@ def get_available_collections_fallback(stac_url):
         response = auth_state["session"].post(stac_url, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
-        collections = set()
-        for feature in data.get("features", []):
-            c = feature.get("collection")
-            if c:
-                collections.add(c)
-        return sorted(collections)
+        return sorted({c for feature in data.get("features", []) if (c := feature.get("collection"))})
     except Exception as e:
         print(f"Erro a obter as coleções: {e}")
         return []
@@ -330,14 +294,8 @@ def interactive_mode(stac_url):
 
         bbox_input = input("Define a bounding box (WGS84) separada por virgulas, como (min_lon,min_lat,max_lon,max_lat):\n> ")
         input_bbox = [float(x.strip()) for x in bbox_input.split(",")]
-
-        output_dir = input("Diretoria de output (default: ./downloaded_files):\n> ").strip()
-        if not output_dir:
-            output_dir = "./downloaded_files"
-
-        delay_input = input("Tempo de espera em segundos entre cada request/download (default: 5.0):\n> ").strip()
-        download_delay = float(delay_input) if delay_input else 5.0
-
+        output_dir = input("Diretoria de output (default: ./downloaded_files):\n> ").strip() or "./downloaded_files"
+        download_delay = float(input("Tempo de espera em segundos entre cada request/download (default: 5.0):\n> ").strip() or 5.0)
         available = get_available_collections_fallback(stac_url)
         if not available:
             print("AVISO: Não foi possível obter as coleções. A processar sem esse filtro.")
@@ -373,28 +331,25 @@ def main(bbox, stac_url, output_dir, delay, collections=None):
         urls_per_collection = collect_urls_per_collection(stac_response)
         
         for collection, url_id_ext_pairs in urls_per_collection.items():
-            if collection not in all_urls_per_collection:
-                all_urls_per_collection[collection] = []
-            all_urls_per_collection[collection].extend(url_id_ext_pairs)
-        
+            all_urls_per_collection.setdefault(collection, []).extend(url_id_ext_pairs)
         print(f"Encontrados {sum(len(urls) for urls in urls_per_collection.values())} items na bbox {i}")
 
     total_urls = sum(len(urls) for urls in all_urls_per_collection.values())
     print(f"Total de URLs únicos para download: {total_urls}")
-    downloaded = 0
-    skipped = 0
-    auth_state["download_counter"] = 0 # Reset counter before starting downloads
-
+    downloaded, skipped = 0, 0
+    auth_state["download_counter"] = 0
     for collection, url_id_ext_pairs in all_urls_per_collection.items():
         print(f"\nDownloading da coleção: {collection}")
+        collection_output_dir = os.path.join(output_dir, collection)
         for j, (url, item_id, extension) in enumerate(url_id_ext_pairs, 1):
             print(f"A processar o URL {j}/{len(url_id_ext_pairs)} : {url}")
-            collection_output_dir = os.path.join(output_dir, collection)
             if download_file(stac_url, url, item_id, extension, collection_output_dir, delay):
-                downloaded += 1
+                if not os.path.exists(os.path.join(collection_output_dir, f"{item_id}{extension}")):
+                    downloaded += 1
+                else:
+                    skipped += 1
             else:
-                skipped += 1
-    
+                pass 
     print(f"\nResumo: Download de {downloaded} ficheiros, ignorados {skipped} ficheiros")
 
 if __name__ == "__main__":
@@ -431,22 +386,14 @@ if __name__ == "__main__":
                     raise ValueError("Bounding box must have 4 values: min_lon min_lat max_lon max_lat")
             except ValueError as e:
                 parser.error(f"Invalid bbox format: {e}")
-
-            # Output directory
-            output_dir = args.output_dir
-            # Delay
-            download_delay = args.delay
             selected_collections = [c.strip() for c in args.collections.split(",")] if args.collections else None
-
             print("\n--- DGT CDD Downloader (Command-Line Mode) ---")
             print(f"Bounding box: {input_bbox}")
-            print(f"Output directory: {output_dir}")
-            print(f"Delay: {download_delay}s")
+            print(f"Output directory: {args.output_dir}")
+            print(f"Delay: {args.delay}s")
             print(f"Collections: {selected_collections or 'All available in BBox'}")
             print("\nInício do processo de download...\n")
-            
-            main(input_bbox, STAC_SEARCH_URL, output_dir, download_delay, collections=selected_collections)
-
+            main(input_bbox, STAC_SEARCH_URL, args.output_dir, args.delay, collections=selected_collections)
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
         sys.exit(1)
