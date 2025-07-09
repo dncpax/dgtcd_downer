@@ -1,0 +1,15 @@
+[general]
+name=DGT CDD Downloader
+description=Download geospatial data from the DGT (Direção-Geral do Território) CDD Portal using session-based authentication.
+about=This plugin adds a tool to the QGIS Processing Toolbox to download various geospatial datasets (LiDAR, MDS, MDT) from the Portuguese DGT CDD Portal. It handles authentication, divides large areas into smaller chunks, organizes downloaded files, and can optionally create and load VRTs for raster data.
+version=1.0.0
+author=Duarte Carreira, Hugo Santos, Pedro Venâncio
+email=
+qgisMinimumVersion=3.22
+tags=dgt,portugal,download,lidar,raster,cdd,processing
+homepage=
+tracker=
+repository=
+icon=icon.png
+experimental=false
+deprecated=false
