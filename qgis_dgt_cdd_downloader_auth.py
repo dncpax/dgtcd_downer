@@ -18,6 +18,7 @@ from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingParameterExtent,
+    QgsProcessingParameterFeatureSource,
     QgsProcessingParameterString,
     QgsProcessingParameterFolderDestination,
     QgsProcessingParameterNumber,
@@ -89,6 +90,8 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     
     # Constants
     INPUT_EXTENT = 'INPUT_EXTENT'
+    INPUT_POLYGON = 'INPUT_POLYGON'
+    INPUT_METHOD = 'INPUT_METHOD'
     USERNAME = 'USERNAME'
     PASSWORD = 'PASSWORD'
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
@@ -142,10 +145,10 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         return DgtCddDownloaderAlgorithm()
     
     def name(self):
-        return 'dgt_cdd_downloader_auth'
+        return 'dgt_cdd_lidar_data_downloader'
     
     def displayName(self):
-        return self.tr('DGT CDD Downloader')
+        return self.tr('DGT LiDAR Data Downloader')
     
     def group(self):
         return self.tr('DGT CDD Portal')
@@ -155,11 +158,14 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     
     def shortHelpString(self):
         return self.tr("""
-        Download geospatial data from DGT (Direção-Geral do Território) CDD Portal.
+        Download geospatial LiDAR data from portuguese DGT (Direção-Geral do Território) - CDD Portal.
+        (https://cdd.dgterritorio.gov.pt)
         
         This tool allows you to:
         - Login with your DGT credentials (username and password)
-        - Select an area of interest using QGIS extent selector
+        - Select an area of interest using either:
+          * A bounding box extent (from map canvas or manual entry)
+          * A polygon layer (first feature or selected feature will be used)
         - Download various geospatial LiDAR datasets from DGT CDD Portal
         (LAZ, MDS-50cm, MDS-2m, MDT-50cm, MDT-2m)
         - Automatically organize files by collection
@@ -175,11 +181,14 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         
         -------------------------------------------------
         
-        Serviço de descarregamento de dados geográficos da DGT (Direção-Geral do Território) - Centro de Dados.
+        Serviço de descarregamento de dados geográficos LiDAR da DGT (Direção-Geral do Território) - Centro de Dados.
+        (https://cdd.dgterritorio.gov.pt)
         
         Esta ferramenta permite:
         - Fazer login no Centro de dados da DGT com as suas credenciais (username e password)
-        - Selecionar uma área de interesse utilizando as ferramentas do QGIS
+        - Selecionar uma área de interesse utilizando:
+          * Uma extensão retangular (obtida a partir do mapa ou introduzindo as coordenadas manualmente)
+          * Uma camada de polígonos (será usado o primeiro polígono da camada ou o polígono selecionado)
         - Descarregar as várias coleções de dados LiDAR disponíveis no Centro de Dados da DGT
         (LAZ, MDS-50cm, MDS-2m, MDT-50cm, MDT-2m)
         - Organizar os ficheiros descarregados por coleção
@@ -196,12 +205,34 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         """)
     
     def initAlgorithm(self, config=None):
-        # Input extent (can be selected from canvas)
+        # Input method selection
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.INPUT_METHOD,
+                self.tr('Input Method'),
+                options=[self.tr('Extent (Bounding Box)'), self.tr('Polygon Layer')],
+                defaultValue=0,
+                optional=False
+            )
+        )
+        
+        # Input extent (shown when extent method is selected)
         self.addParameter(
             QgsProcessingParameterExtent(
                 self.INPUT_EXTENT,
-                self.tr('Area of Interest'),
-                defaultValue=None
+                self.tr('Area of Interest (Extent)'),
+                defaultValue=None,
+                optional=True
+            )
+        )
+        
+        # Input polygon layer (shown when polygon method is selected)
+        self.addParameter(
+            QgsProcessingParameterFeatureSource(
+                self.INPUT_POLYGON,
+                self.tr('Area of Interest (Polygon Layer)'),
+                types=[QgsProcessing.TypeVectorPolygon],
+                optional=True
             )
         )
         
@@ -496,8 +527,50 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         
         return small_bboxes
     
-    def search_stac_api(self, bbox: List[float], collections: List[str] = None, 
-                       delay: float = 0.2) -> Dict:
+    def divide_polygon(self, polygon: QgsGeometry, max_area_km2: float) -> List[QgsGeometry]:
+        """Divide large polygon into smaller chunks"""
+        # Convert polygon to bounding box first (simple implementation)
+        bbox = polygon.boundingBox()
+        min_lon, min_lat = bbox.xMinimum(), bbox.yMinimum()
+        max_lon, max_lat = bbox.xMaximum(), bbox.yMaximum()
+        
+        deg_to_km = 111
+        
+        # Calculate dimensions
+        width_km = (max_lon - min_lon) * deg_to_km * math.cos(math.radians((min_lat + max_lat) / 2))
+        height_km = (max_lat - min_lat) * deg_to_km
+        total_area_km2 = width_km * height_km
+        
+        if total_area_km2 <= max_area_km2:
+            return [polygon]
+        
+        # Calculate splits
+        splits_x = math.ceil(width_km / math.sqrt(max_area_km2))
+        splits_y = math.ceil(height_km / math.sqrt(max_area_km2))
+        
+        delta_lon = (max_lon - min_lon) / splits_x
+        delta_lat = (max_lat - min_lat) / splits_y
+        
+        small_polygons = []
+        for i in range(splits_x):
+            for j in range(splits_y):
+                small_min_lon = min_lon + i * delta_lon
+                small_max_lon = min(small_min_lon + delta_lon, max_lon)
+                small_min_lat = min_lat + j * delta_lat
+                small_max_lat = min(small_min_lat + delta_lat, max_lat)
+                
+                # Create rectangle polygon
+                rect = QgsGeometry.fromRect(QgsRectangle(small_min_lon, small_min_lat, small_max_lon, small_max_lat))
+                
+                # Clip with original polygon
+                clipped = rect.intersection(polygon)
+                if not clipped.isEmpty() and clipped.area() > 0:
+                    small_polygons.append(clipped)
+        
+        return small_polygons
+    
+    def search_stac_api_bbox(self, bbox: List[float], collections: List[str] = None, 
+                           delay: float = 0.2) -> Dict:
         """Search STAC API for items in bounding box"""
         payload = {
             "bbox": bbox,
@@ -519,6 +592,44 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         except requests.RequestException as e:
             QgsMessageLog.logMessage(
                 f"STAC API error for bbox {bbox}: {e}",
+                "DGT Downloader",
+                Qgis.Warning
+            )
+            return {"features": []}
+    
+    def search_stac_api_geometry(self, geometry: QgsGeometry, collections: List[str] = None, 
+                               delay: float = 0.2) -> Dict:
+        """Search STAC API for items intersecting with geometry"""
+        # Convert QgsGeometry to GeoJSON format
+        geom_json = json.loads(geometry.asJson())
+        
+        payload = {
+            "filter": {
+                "op": "intersects",
+                "args": [
+                    {"property": "geometry"},
+                    geom_json
+                ]
+            },
+            "limit": 1000
+        }
+        
+        if collections:
+            payload["collections"] = collections
+        
+        time.sleep(delay)
+        
+        try:
+            response = self.session.post(
+                self.stac_url, 
+                json=payload, 
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            QgsMessageLog.logMessage(
+                f"STAC API error for geometry {geom_json}: {e}",
                 "DGT Downloader",
                 Qgis.Warning
             )
@@ -768,9 +879,9 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             feedback.reportError(f"Error loading VRT to QGIS: {str(e)}")
             return False
     
-    def create_boundary_layer(self, bboxes: List[List[float]], output_path: str, 
-                            context: QgsProcessingContext, feedback: QgsProcessingFeedback) -> str:
-        """Create a vector layer showing download boundaries"""
+    def create_boundary_layer_bbox(self, bboxes: List[List[float]], output_path: str, 
+                                context: QgsProcessingContext, feedback: QgsProcessingFeedback) -> str:
+        """Create a vector layer showing download boundaries from bboxes"""
         try:
             # Create memory layer first
             crs = QgsCoordinateReferenceSystem('EPSG:4326')
@@ -849,11 +960,86 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             feedback.reportError(f"Error creating boundary layer: {str(e)}")
             return None
     
+    def create_boundary_layer_polygon(self, polygons: List[QgsGeometry], output_path: str, 
+                                    context: QgsProcessingContext, feedback: QgsProcessingFeedback) -> str:
+        """Create a vector layer showing download boundaries from polygons"""
+        try:
+            # Create memory layer first
+            crs = QgsCoordinateReferenceSystem('EPSG:4326')
+            layer = QgsVectorLayer(
+                f"Polygon?crs=EPSG:4326",
+                "DGT Download Boundaries",
+                "memory"
+            )
+            
+            # Create fields with proper constructor
+            fields = QgsFields()
+            fields.append(QgsField("id", QVariant.Int, "Integer"))
+            fields.append(QgsField("min_lon", QVariant.Double, "Real"))
+            fields.append(QgsField("min_lat", QVariant.Double, "Real"))
+            fields.append(QgsField("max_lon", QVariant.Double, "Real"))
+            fields.append(QgsField("max_lat", QVariant.Double, "Real"))
+            fields.append(QgsField("area_km2", QVariant.Double, "Real"))
+            
+            # Add fields to layer
+            layer.dataProvider().addAttributes(fields)
+            layer.updateFields()
+            
+            # Create features
+            features = []
+            for i, polygon in enumerate(polygons):
+                bbox = polygon.boundingBox()
+                min_lon, min_lat = bbox.xMinimum(), bbox.yMinimum()
+                max_lon, max_lat = bbox.xMaximum(), bbox.yMaximum()
+                
+                # Create feature with actual polygon geometry
+                feature = QgsFeature()
+                feature.setGeometry(polygon)
+                
+                # Calculate area in km²
+                deg_to_km = 111
+                width_km = (max_lon - min_lon) * deg_to_km * math.cos(math.radians((min_lat + max_lat) / 2))
+                height_km = (max_lat - min_lat) * deg_to_km
+                area_km2 = width_km * height_km
+                
+                feature.setAttributes([i + 1, min_lon, min_lat, max_lon, max_lat, area_km2])
+                features.append(feature)
+            
+            # Add features to layer
+            layer.dataProvider().addFeatures(features)
+            layer.updateExtents()
+            
+            # Write layer to file
+            transform_context = context.transformContext()
+            save_options = QgsVectorFileWriter.SaveVectorOptions()
+            save_options.driverName = "GPKG"
+            save_options.fileEncoding = "UTF-8"
+            
+            error = QgsVectorFileWriter.writeAsVectorFormatV2(
+                layer,
+                output_path,
+                transform_context,
+                save_options
+            )
+            
+            if error[0] == QgsVectorFileWriter.NoError:
+                feedback.pushInfo(f"Boundary layer created successfully: {output_path}")
+                return output_path
+            else:
+                feedback.reportError(f"Error creating boundary layer: {error[1]}")
+                return None
+                
+        except Exception as e:
+            feedback.reportError(f"Error creating boundary layer: {str(e)}")
+            return None
+    
     def processAlgorithm(self, parameters, context, feedback):
         """Main processing algorithm"""
         try:
             # Get parameters
-            extent = self.parameterAsExtent(parameters, self.INPUT_EXTENT, context)
+            input_method = self.parameterAsEnum(parameters, self.INPUT_METHOD, context)
+            extent = self.parameterAsExtent(parameters, self.INPUT_EXTENT, context) if input_method == 0 else None
+            polygon_source = self.parameterAsSource(parameters, self.INPUT_POLYGON, context) if input_method == 1 else None
             self._username = self.parameterAsString(parameters, self.USERNAME, context)
             self._password = self.parameterAsString(parameters, self.PASSWORD, context)
             output_folder = self.parameterAsString(parameters, self.OUTPUT_FOLDER, context)
@@ -861,7 +1047,6 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             max_area = self.parameterAsDouble(parameters, self.MAX_AREA, context)
             collection_indices = self.parameterAsEnums(parameters, self.COLLECTIONS, context)
             create_vrt = self.parameterAsBool(parameters, self.CREATE_VRT, context)
-            # Get the overview parameter (only if create_vrt is True)
             build_overviews = False
             if create_vrt:
                 build_overviews = self.parameterAsBool(parameters, self.BUILD_OVERVIEWS, context)
@@ -876,34 +1061,65 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             if not self._username or not self._password:
                 raise QgsProcessingException("Username and password are required")
             
-            if extent.isNull():
-                raise QgsProcessingException("Please specify an area of interest")
-            
-            # Convert extent to bbox
-            bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
-            
-            feedback.pushInfo(f"Area of interest: {bbox}")
-            feedback.pushInfo(f"Output folder: {output_folder}")
+            # Handle input based on method
+            if input_method == 0:  # Extent method
+                if extent.isNull():
+                    raise QgsProcessingException("Please specify an area of interest extent")
+                
+                # Convert extent to WGS84 if needed
+                extent_crs = self.parameterAsExtentCrs(parameters, self.INPUT_EXTENT, context)
+                if extent_crs != QgsCoordinateReferenceSystem('EPSG:4326'):
+                    transform = QgsCoordinateTransform(
+                        extent_crs,
+                        QgsCoordinateReferenceSystem('EPSG:4326'),
+                        context.project()
+                    )
+                    extent = transform.transformBoundingBox(extent)
+                
+                # Convert to bbox list
+                bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
+                
+                feedback.pushInfo(f"Processing extent: {bbox}")
+                
+                # Divide large areas into smaller chunks
+                feedback.pushInfo("Dividing area into smaller chunks...")
+                small_bboxes = self.divide_bbox(bbox, max_area)
+                feedback.pushInfo(f"Created {len(small_bboxes)} download chunks")
+                
+            else:  # Polygon method
+                polygon_source = self.parameterAsSource(parameters, self.INPUT_POLYGON, context)
+                if polygon_source is None:
+                    raise QgsProcessingException("Please specify a polygon layer for area of interest")
+
+                # Get first feature (from selection if any)
+                features = polygon_source.getFeatures()
+                try:
+                    first_feature = next(features)
+                except StopIteration:
+                    raise QgsProcessingException("Polygon layer has no features")
+
+                polygon = first_feature.geometry()
+                
+                # Transform to WGS84 if needed
+                if polygon_source.sourceCrs() != QgsCoordinateReferenceSystem('EPSG:4326'):
+                    transform = QgsCoordinateTransform(
+                        polygon_source.sourceCrs(),
+                        QgsCoordinateReferenceSystem('EPSG:4326'),
+                        context.project()
+                    )
+                    polygon.transform(transform)
+                
+                feedback.pushInfo(f"Processing polygon with {polygon.asWkt()[:50]}...")
+                
+                # Divide large areas into smaller chunks
+                feedback.pushInfo("Dividing area into smaller chunks...")
+                small_polygons = self.divide_polygon(polygon, max_area)
+                feedback.pushInfo(f"Created {len(small_polygons)} download chunks")
             
             # Authenticate
             feedback.pushInfo("Authenticating with DGT...")
             if not self.authenticate(self._username, self._password, feedback):
                 raise QgsProcessingException("Authentication failed")
-            
-            # Convert extent to WGS84 if needed
-            extent_crs = self.parameterAsExtentCrs(parameters, self.INPUT_EXTENT, context)
-            if extent_crs != QgsCoordinateReferenceSystem('EPSG:4326'):
-                transform = QgsCoordinateTransform(
-                    extent_crs,
-                    QgsCoordinateReferenceSystem('EPSG:4326'),
-                    context.project()
-                )
-                extent = transform.transformBoundingBox(extent)
-            
-            # Convert to bbox list
-            bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
-            
-            feedback.pushInfo(f"Processing area: {bbox}")
             
             # Get collections to download
             available_collections = ['LAZ', 'MDS-2m', 'MDS-50cm', 'MDT-2m', 'MDT-50cm']
@@ -914,43 +1130,71 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             
             feedback.pushInfo(f"Collections to download: {collections}")
             
-            # Divide large areas into smaller chunks
-            feedback.pushInfo("Dividing area into smaller chunks...")
-            small_bboxes = self.divide_bbox(bbox, max_area)
-            feedback.pushInfo(f"Created {len(small_bboxes)} download chunks")
-            
             # Collect all download URLs
             all_urls_per_collection = {}
-            total_chunks = len(small_bboxes)
             
-            for i, small_bbox in enumerate(small_bboxes):
-                if feedback.isCanceled():
-                    return {}
+            if input_method == 0:  # Extent method
+                total_chunks = len(small_bboxes)
                 
-                feedback.pushInfo(f"Processing chunk {i+1}/{total_chunks}: {small_bbox}")
-                feedback.setProgress(int(100 * i / total_chunks))
+                for i, small_bbox in enumerate(small_bboxes):
+                    if feedback.isCanceled():
+                        return {}
+                    
+                    feedback.pushInfo(f"Processing chunk {i+1}/{total_chunks}: {small_bbox}")
+                    feedback.setProgress(int(100 * i / total_chunks))
+                    
+                    # Check session before each chunk
+                    if self.is_session_expired() or not self.is_session_valid(feedback):
+                        feedback.pushInfo("Session expired or invalid, re-authenticating...")
+                        if not self.authenticate(self._username, self._password, feedback):
+                            raise AuthenticationError("Re-authentication failed")
+                    
+                    # Search STAC API
+                    stac_response = self.search_stac_api_bbox(small_bbox, collections, delay)
+                    
+                    if not stac_response.get("features"):
+                        feedback.pushInfo(f"No features found for chunk {i+1}")
+                        continue
+                    
+                    # Collect URLs
+                    urls_per_collection = self.collect_urls_per_collection(stac_response)
+                    
+                    # Merge with all URLs
+                    for collection, urls in urls_per_collection.items():
+                        if collection not in all_urls_per_collection:
+                            all_urls_per_collection[collection] = []
+                        all_urls_per_collection[collection].extend(urls)
+            else:  # Polygon method
+                total_chunks = len(small_polygons)
                 
-                # Check session before each chunk
-                if self.is_session_expired() or not self.is_session_valid(feedback):
-                    feedback.pushInfo("Session expired or invalid, re-authenticating...")
-                    if not self.authenticate(self._username, self._password, feedback):
-                        raise AuthenticationError("Re-authentication failed")
-                
-                # Search STAC API
-                stac_response = self.search_stac_api(small_bbox, collections, delay)
-                
-                if not stac_response.get("features"):
-                    feedback.pushInfo(f"No features found for chunk {i+1}")
-                    continue
-                
-                # Collect URLs
-                urls_per_collection = self.collect_urls_per_collection(stac_response)
-                
-                # Merge with all URLs
-                for collection, urls in urls_per_collection.items():
-                    if collection not in all_urls_per_collection:
-                        all_urls_per_collection[collection] = []
-                    all_urls_per_collection[collection].extend(urls)
+                for i, small_polygon in enumerate(small_polygons):
+                    if feedback.isCanceled():
+                        return {}
+                    
+                    feedback.pushInfo(f"Processing chunk {i+1}/{total_chunks}")
+                    feedback.setProgress(int(100 * i / total_chunks))
+                    
+                    # Check session before each chunk
+                    if self.is_session_expired() or not self.is_session_valid(feedback):
+                        feedback.pushInfo("Session expired or invalid, re-authenticating...")
+                        if not self.authenticate(self._username, self._password, feedback):
+                            raise AuthenticationError("Re-authentication failed")
+                    
+                    # Search STAC API with polygon geometry
+                    stac_response = self.search_stac_api_geometry(small_polygon, collections, delay)
+                    
+                    if not stac_response.get("features"):
+                        feedback.pushInfo(f"No features found for chunk {i+1}")
+                        continue
+                    
+                    # Collect URLs
+                    urls_per_collection = self.collect_urls_per_collection(stac_response)
+                    
+                    # Merge with all URLs
+                    for collection, urls in urls_per_collection.items():
+                        if collection not in all_urls_per_collection:
+                            all_urls_per_collection[collection] = []
+                        all_urls_per_collection[collection].extend(urls)
             
             # Remove duplicates
             for collection in all_urls_per_collection:
@@ -1017,9 +1261,15 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             boundary_layer_path = None
             if create_boundary and boundary_output:
                 feedback.pushInfo("Creating boundary layer...")
-                boundary_layer_path = self.create_boundary_layer(
-                    small_bboxes, boundary_output, context, feedback
-                )
+                
+                if input_method == 0:  # Extent method
+                    boundary_layer_path = self.create_boundary_layer_bbox(
+                        small_bboxes, boundary_output, context, feedback
+                    )
+                else:  # Polygon method
+                    boundary_layer_path = self.create_boundary_layer_polygon(
+                        small_polygons, boundary_output, context, feedback
+                    )
                 
                 if boundary_layer_path:
                     # Load boundary layer to QGIS
@@ -1027,12 +1277,6 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
                     if boundary_layer.isValid():
                         QgsProject.instance().addMapLayer(boundary_layer)
                         feedback.pushInfo("Boundary layer added to QGIS")
-            else:
-                # Explicitly set to None when not creating boundary layer
-                boundary_layer_path = None
-                # Remove the output from results if it exists
-                if self.BOUNDARY_OUTPUT in parameters:
-                    parameters[self.BOUNDARY_OUTPUT] = None
             
             # Summary
             feedback.pushInfo("Download process completed!")
