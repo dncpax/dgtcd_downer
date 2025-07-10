@@ -2,7 +2,7 @@ from qgis.core import QgsProcessingProvider
 from qgis.PyQt.QtGui import QIcon
 import os
 
-# Import the algorithm from the processing_algorithm.py file
+# Import the algorithm
 from .processing_algorithm import DgtCddDownloaderAlgorithm
 
 class DgtCddDownloaderProvider(QgsProcessingProvider):
@@ -12,15 +12,15 @@ class DgtCddDownloaderProvider(QgsProcessingProvider):
 
     def __init__(self):
         super().__init__()
-        self.algorithms = []
 
     def loadAlgorithms(self, *args, **kwargs):
         """
         Loads all algorithms belonging to this provider.
         """
-        self.algorithms = [DgtCddDownloaderAlgorithm()]
-        for alg in self.algorithms:
-            self.addAlgorithm(alg)
+        # Instantiate the algorithm and add it directly.
+        # The parent class handles storing it.
+        alg = DgtCddDownloaderAlgorithm()
+        self.addAlgorithm(alg)
 
     def id(self, *args, **kwargs):
         """
