@@ -10,8 +10,12 @@ import json
 import time
 import urllib.parse
 import glob
+import ssl
 from typing import Dict, List, Tuple, Any, Optional
 from html.parser import HTMLParser
+
+from requests.adapters import HTTPAdapter
+from urllib3 import PoolManager
 
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.core import (
@@ -47,6 +51,33 @@ from qgis.core import (
 )
 from qgis.PyQt.QtWidgets import QMessageBox
 import processing
+
+
+class SSLNoVerifyAdapter(HTTPAdapter):
+    """
+    A custom Transport Adapter for requests that disables SSL certificate verification.
+    This is used as a last resort for environments with intrusive SSL inspection
+    where standard `verify=False` is not sufficient.
+    """
+    def init_poolmanager(self, connections, maxsize, block=False):
+        """
+        Initializes a urllib3 PoolManager with a custom SSL context that
+        does not perform certificate verification. This method is compatible
+        with older Python versions.
+        """
+        # Create a custom SSL context
+        context = ssl.create_default_context()
+        # Disable hostname checking
+        context.check_hostname = False
+        # Disable certificate verification
+        context.verify_mode = ssl.CERT_NONE
+        
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            ssl_context=context
+        )
 
 
 class AuthenticationError(Exception):
@@ -379,6 +410,14 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             
             # Create a fresh session
             self.session = requests.Session()
+
+            # Mount the custom adapter to forcefully disable SSL verification for all requests.
+            # This is a robust workaround for environments with SSL inspection proxies
+            # that interfere with standard certificate validation.
+            feedback.pushWarning("Mounting custom adapter to disable SSL verification for the entire session.")
+            self.session.mount('https://', SSLNoVerifyAdapter())
+            self.session.mount('http://', SSLNoVerifyAdapter())
+            
             self.session.headers.update(self.headers)
             
             # Step 1: Visit main site to get initial session
@@ -736,9 +775,8 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
                 feedback.pushInfo(f"Downloaded {filename} successfully")
                 return True
                 
-            except (requests.exceptions.ConnectionError, 
-                    requests.exceptions.ChunkedEncodingError,
-                    requests.exceptions.Timeout) as e:
+            except requests.exceptions.RequestException as e:
+                # This broad exception catches ConnectionError, Timeout, SSLError, etc.
                 retry_count += 1
                 if retry_count < max_retries:
                     feedback.pushInfo(f"Connection error downloading {filename} (attempt {retry_count}/{max_retries}): {str(e)}")
@@ -1312,4 +1350,8 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException(f"Processing failed: {str(e)}")
 
 
-
+def classFactory(iface):
+    """
+    Required function for QGIS plugin loading
+    """
+    return DgtCddDownloaderAlgorithm()
