@@ -179,7 +179,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         return 'dgt_cdd_lidar_data_downloader'
     
     def displayName(self):
-        return self.tr('DGT LiDAR Data Downloader')
+        return self.tr('DGT CDD Data Downloader')
     
 
 # Removed to avoid a subgroup creation
