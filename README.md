@@ -85,6 +85,10 @@ Verifica os agrumentos necessários para este funcionar com:
 7. Seleciona o número da coleção (ex: 1,3 ou Enter para todas na BBox)
 8. E vai tomar ☕!!
 
+
+> [!WARNING]  
+> Em muitas redes de entidades / instituições, por questões de segurança, portas estranhas como a 8081 ou a 9000 podem não se encontrar acessíveis e nesses casos o plugin/script podem não funcionar.
+
 ## TODO
 
 * Possibilidade de download sem o frontend atual ✅
@@ -189,6 +193,9 @@ Check the agruments needed for this to work with:
 6. Set the number of seconds to wait between each request/download
 7. Select the collection number (e.g. 1,3 or Enter for all in BBox)
 8. And you should go take some ☕ !!!
+
+> [!WARNING] 
+> In many networks of organizations / institutions, for security reasons, strange ports such as 8081 or 9000 may not be accessible and in these cases the plugin/script may not work.
 
 ## TODO
 
