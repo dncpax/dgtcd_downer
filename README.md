@@ -121,7 +121,7 @@ At the moment, you can only download files from the [CDD website](https://cdd.dg
 
 For those who need areas larger than 200km², the process is very time-consuming, and potentially induces carpal tunnel syndrome [^1], as long as there is no API for the purpose, yet!
 
-Initially, a script was created to allow "automatic" downloading for larger areas, which eventually evolved into a plugin [QGIS](https://qgis.org/), in order to facilitate access to the data for all users.
+Initially, a script was created to allow "automatic" downloading for larger areas, which eventually evolved into a [QGIS](https://qgis.org/) plugin, in order to facilitate access to the data for all users.
 
 > [!IMPORTANT] 
 > Tool developed by the community and not affiliated with the Direção-Geral do Território.
