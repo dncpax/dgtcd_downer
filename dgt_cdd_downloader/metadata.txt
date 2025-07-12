@@ -14,16 +14,12 @@ about= <div style="max-width:33em">A plugin for the <a href="https://cdd.dgterri
 
         To effectively run the plugin you'll need to register at <a href="https://cdd.dgterritorio.gov.pt/">https://cdd.dgterritorio.gov.pt/</a>.
 
-        Tool developed by the community and not affiliated with Direção-Geral do Território!</li></ul>
-
-
-    </div>
+        Tool developed by the community and not affiliated with Direção-Geral do Território!</li></ul></div>
 
 version=0.1
 author=Duarte Carreira, Hugo Santos, Pedro Venâncio
 email=
-
-tags=dgt,portugal,download,lidar,raster,cdd,processing
+tags=dgt,portugal,download,lidar,raster,cdd,processing,mdt,mds
 homepage=https://github.com/qgispt/dgtcd_downer
 tracker=https://github.com/qgispt/dgtcd_downer/issues
 repository=https://github.com/qgispt/dgtcd_downer
