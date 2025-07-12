@@ -1,4 +1,4 @@
-# DGT LiDAR Data Downloader
+# DGT CDD Data Downloader
 
 
 [Português](#intro) / [English](#overview)
