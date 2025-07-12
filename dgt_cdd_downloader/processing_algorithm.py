@@ -191,9 +191,8 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     
     def shortHelpString(self):
         return self.tr("""
-        Download geospatial LiDAR data from portuguese DGT (Direção-Geral do Território) - CDD Portal.
-        (https://cdd.dgterritorio.gov.pt)
-        
+        Download geospatial LiDAR data from portuguese <a href='https://cdd.dgterritorio.gov.pt'>DGT (Direção-Geral do Território) - CDD Portal</a>.
+
         This tool allows you to:
         - Login with your DGT credentials (username and password)
         - Select an area of interest using either:
@@ -207,7 +206,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         - Create boundary layers showing download areas
         
         Requirements:
-        - Valid DGT CDD portal credentials (https://cdd.dgterritorio.gov.pt)
+        - Valid credentials for the <a href='https://cdd.dgterritorio.gov.pt'>DGT - CDD Portal</a>
         - Internet connection
         
         The tool will automatically handle the authentication process using session cookies and divide large areas into smaller chunks to avoid server overload.
@@ -230,7 +229,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         - Criar uma layer com a extensão das áreas de download
         
         Requisitos:
-        - Credenciais válidas do Centro de Dados da DGT (https://cdd.dgterritorio.gov.pt)
+        - Credenciais válidas do <a href='https://cdd.dgterritorio.gov.pt'>Centro de Dados da DGT</a>
         - Ligação à Internet
         
         Esta ferramenta vai gerir automaticamente o processo de autenticação usando cookies de sessão e dividir áreas grandes em partes mais pequenas, respeitando os limites impostos pelo servidor.

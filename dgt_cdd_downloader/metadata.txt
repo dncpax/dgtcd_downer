@@ -1,15 +1,30 @@
 [general]
 name=DGT CDD Downloader
-description=Download geospatial data from the DGT (Direção-Geral do Território) CDD Portal using session-based authentication.
-about=This plugin adds a tool to the QGIS Processing Toolbox to download various geospatial datasets (LiDAR, MDS, MDT) from the Portuguese DGT CDD Portal. It handles authentication, divides large areas into smaller chunks, organizes downloaded files, and can optionally create and load VRTs for raster data.
-version=1.0.0
+qgisMinimumVersion=3.22
+description=Download geospatial data from the DGT (Direção-Geral do Território) CDD Portal.
+about= <div style="max-width:33em">A plugin for the <a href="https://cdd.dgterritorio.gov.pt/">DGT CDD Portal</a>
+
+	<ul><li><strong>PT</strong><br/>
+	Este plugin adiciona uma ferramenta ao QGIS Processing Toolbox, para descarregar vários conjuntos de dados geoespaciais (LiDAR, MDS, MDT) do portal português DGT CDD. Permite a autenticação, divide grandes
+    áreas em partes mais pequenas, organiza os ficheiros descarregados e pode, opcionalmente, criar e carregar VRTs para dados raster.
+    Para executar eficazmente o plugin é necessário registar-se em <a href="https://cdd.dgterritorio.gov.pt/">https://cdd.dgterritorio.gov.pt/</a>.</li>
+
+	<li><strong>EN</strong><br/>
+	This plugin adds a tool to the QGIS Processing Toolbox to download various geospatial datasets (LiDAR, MDS, MDT) from the Portuguese DGT CDD Portal. It handles authentication, divides large areas into
+    smaller chunks, organizes downloaded files, and can optionally create and load VRTs for raster data.
+    To effectively run the plugin you'll need to register at <a href="https://cdd.dgterritorio.gov.pt/">https://cdd.dgterritorio.gov.pt/</a>.</li></ul>
+    
+    
+    </div>
+
+version=0.1
 author=Duarte Carreira, Hugo Santos, Pedro Venâncio
 email=
-qgisMinimumVersion=3.22
+
 tags=dgt,portugal,download,lidar,raster,cdd,processing
-homepage=
-tracker=
-repository=
+homepage=https://github.com/qgispt/dgtcd_downer
+tracker=https://github.com/qgispt/dgtcd_downer/issues
+repository=https://github.com/qgispt/dgtcd_downer
 icon=icon.png
 experimental=false
 deprecated=false
