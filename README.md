@@ -119,7 +119,7 @@ It simplifies the download of files from the DGT Data Center, for those who can'
 
 At the moment, you can only download files from the [CDD website](https://cdd.dgterritorio.gov.pt/) by drawing areas of interest up to 200km², clicking on each square to add it to the download list, and then clicking on the download button for all the selected files.
 
-For those who need areas larger than 200km², the process is very time-consuming, and potentially induces carpal tunnel syndrome [^1], as long as there is no API for the purpose!
+For those who need areas larger than 200km², the process is very time-consuming, and potentially induces carpal tunnel syndrome [^1], as long as there is no API for the purpose, yet!
 
 Initially, a script was created to allow "automatic" downloading for larger areas, which eventually evolved into a plugin [QGIS](https://qgis.org/), in order to facilitate access to the data for all users.
 
@@ -158,7 +158,7 @@ If you want something more _raw_ and “simple”, you can just run the [script 
 
 **Requirements**
   * python installed on the system
-  * [CDD] account(https://cdd.dgterritorio.gov.pt/)
+  * [CDD account](https://cdd.dgterritorio.gov.pt/)
 
 Check the agruments needed for this to work with:
 
