@@ -117,7 +117,7 @@ Verifica os agrumentos necessários para este funcionar com:
 
 It simplifies the download of files from the DGT Data Center, for those who can't wait for the API that the DGT is yet to make available.
 
-At the moment, you can only download files from the [CDD] website (https://cdd.dgterritorio.gov.pt/) by drawing areas of interest up to 200km², clicking on each square to add it to the download list, and then clicking on the download button for all the selected files.
+At the moment, you can only download files from the [CDD website](https://cdd.dgterritorio.gov.pt/) by drawing areas of interest up to 200km², clicking on each square to add it to the download list, and then clicking on the download button for all the selected files.
 
 For those who need areas larger than 200km², the process is very time-consuming, and potentially induces carpal tunnel syndrome [^1], as long as there is no API for the purpose!
 
