@@ -134,7 +134,7 @@ We would like to thank the DGT for the initiative to make all the LIDAR survey d
 
 ### Plugin QGIS
 
-* Install via the module manager (coming soon), or install via ZIP, using this [file](https://github.com/qgispt/dgtcd_downer/raw/refs/heads/main/dgt_cdd_downloader.zip)
+* Install via the plugin manager (coming soon), or install via ZIP, using this [file](https://github.com/qgispt/dgtcd_downer/raw/refs/heads/main/dgt_cdd_downloader.zip)
 * The plugin is available for use in the QGIS Processing Toolbox.
 
 <img width="900" src="./img/1.png" />
