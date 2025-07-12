@@ -34,7 +34,7 @@ Inicialmente foi criado um script permite a descarga "automática" para áreas m
 
 <img width="900" src="./img/2.png" />
 
-1. Podes optar por utilizar a extensão do canvas do QGIS ou por uma extensão definidade por um polígono
+1. Podes optar por utilizar a extensão do canvas do QGIS ou por uma extensão definida por um polígono
 2. Caso tenhas optado pela extensão, define aqui a área de interesse
 3. Caso tenhas escolhido um polígono, define aqui qual polígono a utilizar
 4. **Coloca aqui o teu utilizador ou e-mail associado à conta do CDD e respetiva palavra-passe**
