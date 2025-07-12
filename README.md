@@ -87,7 +87,7 @@ Verifica os agrumentos necessários para este funcionar com:
 
 
 > [!WARNING]  
-> Em muitas redes de entidades / instituições, por questões de segurança, portas estranhas como a 8081 ou a 9000 podem não se encontrar acessíveis e nesses casos o plugin/script podem não funcionar.
+> Em muitas redes de entidades / instituições, por questões de segurança, portas estranhas como a 8081 ou 9000 podem não se encontrar acessíveis e nesses casos o plugin/script pode não funcionar.
 
 ## TODO
 
