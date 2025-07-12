@@ -28,11 +28,11 @@ Inicialmente foi criado um script permite a descarga "automática" para áreas m
 * Instala via o gestor de módulos (em breve), ou instala via ZIP, com recurso a este [ficheiro.](https://github.com/qgispt/dgtcd_downer/raw/refs/heads/main/dgt_cdd_downloader.zip)
 * O plugin fica disponível para uso na Toolbox do Processing do QGIS.
 
-<img width="750" src="./img/1.png" />
+<img width="900" src="./img/1.png" />
 
 * o uso do plugin é muito simples, contudo é obrigatório conta no [CDD](https://cdd.dgterritorio.gov.pt/)
 
-<img width="750" src="./img/2.png" />
+<img width="900" src="./img/2.png" />
 
 1. Podes optar por utilizar a extensão do canvas do QGIS ou por uma extensão definidade por um polígono
 2. Caso tenhas optado pela extensão, define aqui a área de interesse
@@ -59,7 +59,7 @@ Verifica os agrumentos necessários para este funcionar com:
    
 ```
 
-<img width="750" src="./img/3.png" />
+<img width="900" src="./img/3.png" />
 
 
 
@@ -119,6 +119,9 @@ For those who need areas larger than 200km², the process is very time-consuming
 
 Initially, a script was created to allow "automatic" downloading for larger areas, which eventually evolved into a plugin [QGIS](https://qgis.org/), in order to facilitate access to the data for all users.
 
+> [!IMPORTANT] 
+> Tool developed by the community and not affiliated with the Direção-Geral do Território.
+
 ## Credits
 We would like to thank the DGT for the initiative to make all the LIDAR survey data for the national mainland available, free of charge. This initiative has a huge impact on the exercise of citizenship in our country.
 
@@ -130,16 +133,16 @@ We would like to thank the DGT for the initiative to make all the LIDAR survey d
 * Install via the module manager (coming soon), or install via ZIP, using this [file](https://github.com/qgispt/dgtcd_downer/raw/refs/heads/main/dgt_cdd_downloader.zip)
 * The plugin is available for use in the QGIS Processing Toolbox.
 
-<img width="750" src="./img/1.png" />
+<img width="900" src="./img/1.png" />
 
 * Use of the plugin is very simple, but a [CDD](https://cdd.dgterritorio.gov.pt/) account is required.
 
-<img width="750" src="./img/2.png" />
+<img width="900" src="./img/2.png" />
 
 1. You can choose to use the QGIS canvas extension or an extension defined by a polygon.
 2. If you have chosen the extension, define the area of interest here
 3. If you have chosen a polygon, define here which polygon to use
-4. **Enter your username or e-mail address associated with your CDD account and password here.
+4. **Enter your username or e-mail address associated with your CDD account and password here.**
 5. Choose which collection(s) you want to download. **If none are selected, all will be downloaded.
 6. We advise you to set the _output_ folder so that the files don't get lost in the _temp_ or _tmp_ folder.
 7. There isn't one, but you should go take some ☕!!!
@@ -161,7 +164,7 @@ Check the agruments needed for this to work with:
    
 ```
 
-<img width="750" src="./img/3.png" />
+<img width="900" src="./img/3.png" />
 
 
 
@@ -187,8 +190,23 @@ Check the agruments needed for this to work with:
 7. Select the collection number (e.g. 1,3 or Enter for all in BBox)
 8. And you should go take some ☕ !!!
 
+## TODO
+
+* Possibility of downloading without the current frontend ✅
+* Add essential feature...progress bar ✅
+* Authentication in the script ✅
+* Possibility of downloading just one collection, several or all ✅
+* Define separate folders for each collection ✅
+* Use input params to allow batch scripting ✅
+* Create vrt of each downloaded collection ✅ (in QGIS script)
+* Create a tile index of the downloaded collections ❌
+* Create contour lines as a script option ❌
+* Make a micro how-to for use ✅ (more or less done)
+* Make a UI 💀💀💀... hmmmm nahhh! Or better in QGIS! ✅
 
 
+> [!WARNING] 
+> With the eventual availability of the API, the script may become obsolete.
 
 
 
