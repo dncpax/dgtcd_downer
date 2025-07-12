@@ -147,7 +147,7 @@ We would like to thank the DGT for the initiative to make all the LIDAR survey d
 2. If you have chosen the extension, define the area of interest here
 3. If you have chosen a polygon, define here which polygon to use
 4. **Enter your username or e-mail address associated with your CDD account and password here.**
-5. Choose which collection(s) you want to download. **If none are selected, all will be downloaded.
+5. Choose which collection(s) you want to download. **If none are selected, all will be downloaded**.
 6. We advise you to set the _output_ folder so that the files don't get lost in the _temp_ or _tmp_ folder.
 7. There isn't one, but you should go take some ☕!!!
 
