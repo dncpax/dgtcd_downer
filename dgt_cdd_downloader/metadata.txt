@@ -18,7 +18,7 @@ about= <div style="max-width:33em">A plugin for the <a href="https://cdd.dgterri
 
 version=0.1
 author=Duarte Carreira, Hugo Santos, Pedro Venâncio
-email=
+email=qgis@qgis.pt
 tags=dgt,portugal,download,lidar,raster,cdd,processing,mdt,mds
 homepage=https://github.com/qgispt/dgtcd_downer
 tracker=https://github.com/qgispt/dgtcd_downer/issues
