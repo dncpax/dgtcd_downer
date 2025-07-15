@@ -36,7 +36,7 @@ Inicialmente foi criado um script permite a descarga "automática" para áreas m
 
 1. Podes optar por utilizar a extensão do canvas do QGIS ou por uma extensão definida por um polígono
 2. Caso tenhas optado pela extensão, define aqui a área de interesse
-3. Caso tenhas escolhido um polígono, define aqui qual polígono a utilizar
+3. Caso tenhas escolhido um polígono, define aqui qual polígono a utilizar (pode, por exemplo, ser uma freguesia ou um concelho selecionado na layer da CAOP, ou um polígono representando a extensão de uma estrada ou de uma linha elétrica)
 4. **Coloca aqui o teu utilizador ou e-mail associado à conta do CDD e respetiva palavra-passe**
 5. Escolhe qual ou quais a coleções que pretendes fazer download. **Se nenhuma selecionada irá ser realizado o download de todas**
 6. Aconselhamos a definir a pasta de _output_ para os ficheiros não ficarem perdidos na past _temp_ ou _tmp_
@@ -145,7 +145,7 @@ We would like to thank the DGT for the initiative to make all the LIDAR survey d
 
 1. You can choose to use the QGIS canvas extension or an extension defined by a polygon.
 2. If you have chosen the extension, define the area of interest here
-3. If you have chosen a polygon, define here which polygon to use
+3. If you have chosen a polygon, define here which polygon to use (it can be, for instance, a polygon representing an administrative boundary selected from CAOP, or a polygon representing a road or a powerline)
 4. **Enter your username or e-mail address associated with your CDD account and password here.**
 5. Choose which collection(s) you want to download. **If none are selected, all will be downloaded**.
 6. We advise you to set the _output_ folder so that the files don't get lost in the _temp_ or _tmp_ folder.
