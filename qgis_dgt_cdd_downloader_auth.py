@@ -47,7 +47,10 @@ from qgis.core import (
     QgsProcessingContext,
     QgsProcessingFeedback,
     QgsVectorFileWriter,
-    QgsRasterLayer
+    QgsRasterLayer,
+    QgsProcessingParameterAuthConfig,
+    QgsAuthMethodConfig,
+    QgsApplication
 )
 from qgis.PyQt.QtWidgets import QMessageBox
 import processing
@@ -123,8 +126,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     INPUT_EXTENT = 'INPUT_EXTENT'
     INPUT_POLYGON = 'INPUT_POLYGON'
     INPUT_METHOD = 'INPUT_METHOD'
-    USERNAME = 'USERNAME'
-    PASSWORD = 'PASSWORD'
+    AUTH_CONFIG = 'AUTH_CONFIG'  # Changed from USERNAME/PASSWORD to AUTH_CONFIG
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
     DELAY = 'DELAY'
     COLLECTIONS = 'COLLECTIONS'
@@ -181,7 +183,6 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     def displayName(self):
         return self.tr('DGT LiDAR Data Downloader')
     
-
 # Removed to avoid a subgroup creation
 #    def group(self):
 #        return self.tr('DGT CDD Portal')
@@ -195,7 +196,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         (https://cdd.dgterritorio.gov.pt)
         
         This tool allows you to:
-        - Login with your DGT credentials (username and password)
+        - Login with your DGT credentials, using QGIS Authentication System - "Basic Authentication" method (username and password)
         - Select an area of interest using either:
           * A bounding box extent (from map canvas or manual entry)
           * A polygon layer (first feature or selected feature will be used)
@@ -218,7 +219,7 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
         (https://cdd.dgterritorio.gov.pt)
         
         Esta ferramenta permite:
-        - Fazer login no Centro de dados da DGT com as suas credenciais (username e password)
+        - Fazer login no Centro de dados da DGT com as suas credenciais, utilizando o sistema de autenticação do QGIS - "Basic Authentication" (username e password)
         - Selecionar uma área de interesse utilizando:
           * Uma extensão retangular (obtida a partir do mapa ou introduzindo as coordenadas manualmente)
           * Uma camada de polígonos (será usado o primeiro polígono da camada ou o polígono selecionado)
@@ -269,25 +270,12 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             )
         )
         
-        # Authentication parameters
+        # Authentication parameter - replaced username/password with auth config
         self.addParameter(
-            QgsProcessingParameterString(
-                self.USERNAME,
-                self.tr('Username'),
-                multiLine=False,
-                defaultValue='',
-                optional=False
-            )
-        )
-        
-        # Password parameter (Note: QGIS Processing doesn't support native password fields)
-        # The password will be visible while typing - use with caution in shared environments
-        self.addParameter(
-            QgsProcessingParameterString(
-                self.PASSWORD,
-                self.tr('Password'),
-                multiLine=False,
-                defaultValue='',
+            QgsProcessingParameterAuthConfig(
+                self.AUTH_CONFIG,
+                self.tr('Authentication configuration'),
+                defaultValue=None,
                 optional=False
             )
         )
@@ -1080,8 +1068,24 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
             input_method = self.parameterAsEnum(parameters, self.INPUT_METHOD, context)
             extent = self.parameterAsExtent(parameters, self.INPUT_EXTENT, context) if input_method == 0 else None
             polygon_source = self.parameterAsSource(parameters, self.INPUT_POLYGON, context) if input_method == 1 else None
-            self._username = self.parameterAsString(parameters, self.USERNAME, context)
-            self._password = self.parameterAsString(parameters, self.PASSWORD, context)
+            
+            # Get authentication credentials from auth config
+            auth_config_id = self.parameterAsString(parameters, self.AUTH_CONFIG, context)
+            if not auth_config_id:
+                raise QgsProcessingException("Authentication configuration is required")
+                
+            # Get auth config from auth manager
+            auth_manager = QgsApplication.authManager()
+            auth_config = QgsAuthMethodConfig()
+            if not auth_manager.loadAuthenticationConfig(auth_config_id, auth_config, True):
+                raise QgsProcessingException("Could not load authentication configuration")
+                
+            self._username = auth_config.config('username')
+            self._password = auth_config.config('password')
+            
+            if not self._username or not self._password:
+                raise QgsProcessingException("Username and password are required in the authentication configuration")
+            
             output_folder = self.parameterAsString(parameters, self.OUTPUT_FOLDER, context)
             delay = self.parameterAsDouble(parameters, self.DELAY, context)
             max_area = self.parameterAsDouble(parameters, self.MAX_AREA, context)
