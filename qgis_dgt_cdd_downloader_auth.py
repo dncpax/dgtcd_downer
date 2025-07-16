@@ -189,6 +189,9 @@ class DgtCddDownloaderAlgorithm(QgsProcessingAlgorithm):
     
 #    def groupId(self):
 #        return 'dgt_cdd_portal'
+
+    def helpUrl(self):
+        return 'https://github.com/qgispt/dgtcd_downer'
     
     def shortHelpString(self):
         return self.tr("""
